@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, Search, FileText, FileUp, Calendar } from "lucide-react";
 import { useStore } from "../../data/store";
 import type { Vehicle, VehicleType, VehicleStatus } from "../../data/types";
@@ -38,7 +38,7 @@ interface Doc {
 }
 
 export function Vehicles() {
-  const { vehicles, saveVehicle, deleteVehicle, fetchDocuments, addVehicleDocument, can } = useStore();
+  const { vehicles, saveVehicle, deleteVehicle, fetchDocuments, addVehicleDocument, can, pageFilters } = useStore();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Vehicle>(empty);
@@ -49,6 +49,12 @@ export function Vehicles() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [regionFilter, setRegionFilter] = useState("all");
   const [sort, setSort] = useState("default");
+
+  useEffect(() => {
+    if (pageFilters && pageFilters.status) {
+      setStatusFilter(pageFilters.status);
+    }
+  }, [pageFilters]);
 
   // Document Management States
   const [activeDocVehicle, setActiveDocVehicle] = useState<Vehicle | null>(null);
@@ -79,17 +85,42 @@ export function Vehicles() {
     return 0;
   });
 
-  const set = <K extends keyof Vehicle>(k: K, val: Vehicle[K]) => setForm((f) => ({ ...f, [k]: val }));
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = () => {
+    const errs: Record<string, string> = {};
+    if (!form.registration.trim()) {
+      errs.registration = "Registration is required";
+    } else if (!/^[A-Z]{2,3}-\d{2}-[A-Z]{1,3}-\d{4}$/i.test(form.registration)) {
+      errs.registration = "Format must match (e.g. KA-01-AB-1234)";
+    }
+    if (!form.name.trim()) errs.name = "Model name is required";
+    if (form.capacity <= 0) errs.capacity = "Capacity must be positive";
+    if (form.odometer < 0) errs.odometer = "Odometer cannot be negative";
+    if (form.acquisitionCost < 0) errs.acquisitionCost = "Acquisition cost cannot be negative";
+    if (form.year < 1900 || form.year > 2100) errs.year = "Invalid year (1900-2100)";
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const set = <K extends keyof Vehicle>(k: K, val: Vehicle[K]) => {
+    setForm((f) => ({ ...f, [k]: val }));
+  };
+
   const openNew = () => {
     setForm(empty);
+    setErrors({});
     setOpen(true);
   };
+
   const openEdit = (v: Vehicle) => {
     setForm(v);
+    setErrors({});
     setOpen(true);
   };
+
   const save = () => {
-    if (!form.registration || !form.name) return;
+    if (!validate()) return;
     saveVehicle(form);
     setOpen(false);
   };
@@ -239,13 +270,29 @@ export function Vehicles() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={save}>{form.id ? "Save changes" : "Add vehicle"}</Button>
+            <Button onClick={save} disabled={!form.registration || !form.name}>{form.id ? "Save changes" : "Add vehicle"}</Button>
           </>
         }
       >
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Registration"><TextInput value={form.registration} onChange={(e) => set("registration", e.target.value)} placeholder="KA-01-AB-1234" /></Field>
-          <Field label="Model"><TextInput value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Volvo FH16" /></Field>
+          <Field label="Registration">
+            <TextInput 
+              value={form.registration} 
+              onChange={(e) => { set("registration", e.target.value); if (errors.registration) validate(); }} 
+              placeholder="KA-01-AB-1234" 
+              className={errors.registration ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}
+            />
+            {errors.registration && <span className="text-xs text-rose-500 font-medium">{errors.registration}</span>}
+          </Field>
+          <Field label="Model">
+            <TextInput 
+              value={form.name} 
+              onChange={(e) => { set("name", e.target.value); if (errors.name) validate(); }} 
+              placeholder="Volvo FH16" 
+              className={errors.name ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}
+            />
+            {errors.name && <span className="text-xs text-rose-500 font-medium">{errors.name}</span>}
+          </Field>
           <Field label="Type">
             <SelectInput value={form.type} onChange={(e) => set("type", e.target.value as VehicleType)}>
               {["Van", "Truck", "Bus", "Pickup", "Trailer"].map((o) => <option key={o}>{o}</option>)}
@@ -256,10 +303,42 @@ export function Vehicles() {
               {["North", "South", "East", "West"].map((o) => <option key={o}>{o}</option>)}
             </SelectInput>
           </Field>
-          <Field label="Capacity"><TextInput type="number" value={form.capacity} onChange={(e) => set("capacity", +e.target.value)} /></Field>
-          <Field label="Odometer (km)"><TextInput type="number" value={form.odometer} onChange={(e) => set("odometer", +e.target.value)} /></Field>
-          <Field label="Acquisition cost (₹)"><TextInput type="number" value={form.acquisitionCost} onChange={(e) => set("acquisitionCost", +e.target.value)} /></Field>
-          <Field label="Year"><TextInput type="number" value={form.year} onChange={(e) => set("year", +e.target.value)} /></Field>
+          <Field label="Capacity">
+            <TextInput 
+              type="number" 
+              value={form.capacity} 
+              onChange={(e) => { set("capacity", +e.target.value); if (errors.capacity) validate(); }} 
+              className={errors.capacity ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}
+            />
+            {errors.capacity && <span className="text-xs text-rose-500 font-medium">{errors.capacity}</span>}
+          </Field>
+          <Field label="Odometer (km)">
+            <TextInput 
+              type="number" 
+              value={form.odometer} 
+              onChange={(e) => { set("odometer", +e.target.value); if (errors.odometer) validate(); }} 
+              className={errors.odometer ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}
+            />
+            {errors.odometer && <span className="text-xs text-rose-500 font-medium">{errors.odometer}</span>}
+          </Field>
+          <Field label="Acquisition cost (₹)">
+            <TextInput 
+              type="number" 
+              value={form.acquisitionCost} 
+              onChange={(e) => { set("acquisitionCost", +e.target.value); if (errors.acquisitionCost) validate(); }} 
+              className={errors.acquisitionCost ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}
+            />
+            {errors.acquisitionCost && <span className="text-xs text-rose-500 font-medium">{errors.acquisitionCost}</span>}
+          </Field>
+          <Field label="Year">
+            <TextInput 
+              type="number" 
+              value={form.year} 
+              onChange={(e) => { set("year", +e.target.value); if (errors.year) validate(); }} 
+              className={errors.year ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}
+            />
+            {errors.year && <span className="text-xs text-rose-500 font-medium">{errors.year}</span>}
+          </Field>
           <Field label="Status">
             <SelectInput value={form.status} onChange={(e) => set("status", e.target.value as VehicleStatus)} className={inputCls}>
               {["Available", "On Trip", "In Shop", "Retired"].map((o) => <option key={o}>{o}</option>)}

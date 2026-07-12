@@ -88,50 +88,66 @@ export function Fuel() {
       .filter((r) => r.fuel || r.expenses);
   }, [vehicles, fuel, expenses]);
 
-  const submit = () => {
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = () => {
+    const errs: Record<string, string> = {};
     if (tab === "fuel") {
       const v = vehicles.find((x) => x.id === fuelForm.vehicleId);
-      if (!v) {
-        toast.error("Please select a valid vehicle");
-        return;
+      if (!fuelForm.vehicleId) {
+        errs.vehicleId = "Please select a vehicle";
       }
-      if (fuelForm.liters <= 0 || fuelForm.cost <= 0) {
-        toast.error("Liters and Cost must be greater than 0");
-        return;
+      if (fuelForm.liters <= 0) {
+        errs.liters = "Liters must be greater than 0";
       }
-      // Anti-theft: fuel price check (₹85 to ₹105 / L)
-      const rate = fuelForm.cost / fuelForm.liters;
-      if (rate < 85 || rate > 105) {
-        toast.error(`Suspicious Cost Check: ₹${rate.toFixed(1)}/L is outside standard Indian rates (₹85–₹105/L). Entry rejected.`);
-        return;
+      if (fuelForm.cost <= 0) {
+        errs.cost = "Cost must be greater than 0";
       }
-      // Anti-theft: odometer progression check
-      if (fuelForm.odometer <= v.odometer) {
-        toast.error(`Odometer Error: Reading must exceed the vehicle's current odometer (${v.odometer.toLocaleString()} km).`);
-        return;
+      if (fuelForm.liters > 0 && fuelForm.cost > 0) {
+        const rate = fuelForm.cost / fuelForm.liters;
+        if (rate < 85 || rate > 105) {
+          errs.cost = `Suspicious rate (₹${rate.toFixed(1)}/L) is outside standard Indian rates (₹85–₹105/L).`;
+        }
       }
-      if (fuelForm.odometer > v.odometer + 1500) {
-        toast.error("Odometer warning: Value is unrealistically high (+1500 km). Please verify.");
-        return;
+      if (v) {
+        if (fuelForm.odometer <= v.odometer) {
+          errs.odometer = `Odometer must exceed vehicle's current odometer (${v.odometer.toLocaleString()} km)`;
+        } else if (fuelForm.odometer > v.odometer + 1500) {
+          errs.odometer = "Odometer reading seems unrealistically high (+1500 km increase).";
+        }
       }
-      addFuel(fuelForm);
     } else {
-      if (!expForm.description) {
-        toast.error("Expense description is required");
-        return;
+      if (!expForm.vehicleId) {
+        errs.vehicleId = "Please select a vehicle";
+      }
+      if (!expForm.description.trim()) {
+        errs.description = "Description is required";
       }
       if (expForm.amount <= 0) {
-        toast.error("Amount must be greater than 0");
-        return;
+        errs.amount = "Amount must be greater than 0";
       }
-      // Anti-theft: cap toll expenses to ₹5,000 per entry
       if (expForm.category === "Tolls" && expForm.amount > 5000) {
-        toast.error("Anti-Theft Warning: Toll expense exceeds maximum allowed limit of ₹5,000 per entry.");
-        return;
+        errs.amount = "Toll expense exceeds maximum allowed limit of ₹5,000 per entry.";
       }
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const submit = () => {
+    if (!validate()) return;
+    if (tab === "fuel") {
+      addFuel(fuelForm);
+    } else {
       addExpense(expForm);
     }
     setOpen(false);
+    setErrors({});
+  };
+
+  const handleOpenModal = () => {
+    setErrors({});
+    setOpen(true);
   };
 
   return (
@@ -139,7 +155,7 @@ export function Fuel() {
       <PageHeader
         title="Fuel & Expenses"
         subtitle="Track fuel consumption and operating costs across the fleet."
-        action={canCreate && <Button onClick={() => setOpen(true)}><Plus className="size-4" /> Add {tab === "fuel" ? "fuel" : "expense"}</Button>}
+        action={canCreate && <Button onClick={handleOpenModal}><Plus className="size-4" /> Add {tab === "fuel" ? "fuel" : "expense"}</Button>}
       />
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -258,39 +274,56 @@ export function Fuel() {
         ) : tab === "fuel" ? (
           <div className="grid grid-cols-2 gap-4">
             <Field label="Vehicle">
-              <SelectInput value={fuelForm.vehicleId} onChange={(e) => setFuelForm((f) => ({ ...f, vehicleId: e.target.value }))} disabled={isDriver}>
+              <SelectInput value={fuelForm.vehicleId} onChange={(e) => { setFuelForm((f) => ({ ...f, vehicleId: e.target.value })); if (errors.vehicleId) validate(); }} disabled={isDriver}>
                 {isDriver && driverVehicle ? (
                   <option value={driverVehicle.id}>{driverVehicle.registration}</option>
                 ) : (
                   vehicles.map((v) => <option key={v.id} value={v.id}>{v.registration}</option>)
                 )}
               </SelectInput>
+              {errors.vehicleId && <span className="text-xs text-rose-500 font-medium">{errors.vehicleId}</span>}
             </Field>
             <Field label="Date"><TextInput type="date" value={fuelForm.date} onChange={(e) => setFuelForm((f) => ({ ...f, date: e.target.value }))} /></Field>
-            <Field label="Litres"><TextInput type="number" value={fuelForm.liters} onChange={(e) => setFuelForm((f) => ({ ...f, liters: +e.target.value }))} /></Field>
-            <Field label="Cost (₹)"><TextInput type="number" value={fuelForm.cost} onChange={(e) => setFuelForm((f) => ({ ...f, cost: +e.target.value }))} /></Field>
-            <Field label="Odometer (km)"><TextInput type="number" value={fuelForm.odometer} onChange={(e) => setFuelForm((f) => ({ ...f, odometer: +e.target.value }))} /></Field>
+            <Field label="Litres">
+              <TextInput type="number" value={fuelForm.liters} onChange={(e) => { setFuelForm((f) => ({ ...f, liters: +e.target.value })); if (errors.liters || errors.cost) validate(); }} className={errors.liters ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+              {errors.liters && <span className="text-xs text-rose-500 font-medium">{errors.liters}</span>}
+            </Field>
+            <Field label="Cost (₹)">
+              <TextInput type="number" value={fuelForm.cost} onChange={(e) => { setFuelForm((f) => ({ ...f, cost: +e.target.value })); if (errors.cost) validate(); }} className={errors.cost ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+              {errors.cost && <span className="text-xs text-rose-500 font-medium">{errors.cost}</span>}
+            </Field>
+            <Field label="Odometer (km)">
+              <TextInput type="number" value={fuelForm.odometer} onChange={(e) => { setFuelForm((f) => ({ ...f, odometer: +e.target.value })); if (errors.odometer) validate(); }} className={errors.odometer ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+              {errors.odometer && <span className="text-xs text-rose-500 font-medium">{errors.odometer}</span>}
+            </Field>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4">
             <Field label="Vehicle">
-              <SelectInput value={expForm.vehicleId} onChange={(e) => setExpForm((f) => ({ ...f, vehicleId: e.target.value }))} disabled={isDriver}>
+              <SelectInput value={expForm.vehicleId} onChange={(e) => { setExpForm((f) => ({ ...f, vehicleId: e.target.value })); if (errors.vehicleId) validate(); }} disabled={isDriver}>
                 {isDriver && driverVehicle ? (
                   <option value={driverVehicle.id}>{driverVehicle.registration}</option>
                 ) : (
                   vehicles.map((v) => <option key={v.id} value={v.id}>{v.registration}</option>)
                 )}
               </SelectInput>
+              {errors.vehicleId && <span className="text-xs text-rose-500 font-medium">{errors.vehicleId}</span>}
             </Field>
             <Field label="Category">
               <SelectInput value={expForm.category} onChange={(e) => setExpForm((f) => ({ ...f, category: e.target.value }))}>
                 {["Tolls", "Parking", "Insurance", "Fines", "Cleaning", "Misc"].map((o) => <option key={o}>{o}</option>)}
               </SelectInput>
             </Field>
-            <Field label="Amount (₹)"><TextInput type="number" value={expForm.amount} onChange={(e) => setExpForm((f) => ({ ...f, amount: +e.target.value }))} /></Field>
+            <Field label="Amount (₹)">
+              <TextInput type="number" value={expForm.amount} onChange={(e) => { setExpForm((f) => ({ ...f, amount: +e.target.value })); if (errors.amount) validate(); }} className={errors.amount ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+              {errors.amount && <span className="text-xs text-rose-500 font-medium">{errors.amount}</span>}
+            </Field>
             <Field label="Date"><TextInput type="date" value={expForm.date} onChange={(e) => setExpForm((f) => ({ ...f, date: e.target.value }))} /></Field>
             <div className="col-span-2">
-              <Field label="Description"><TextInput value={expForm.description} onChange={(e) => setExpForm((f) => ({ ...f, description: e.target.value }))} placeholder="Toll charges Bengaluru–Chennai" /></Field>
+              <Field label="Description">
+                <TextInput value={expForm.description} onChange={(e) => { setExpForm((f) => ({ ...f, description: e.target.value })); if (errors.description) validate(); }} placeholder="Toll charges Bengaluru–Chennai" className={errors.description ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+                {errors.description && <span className="text-xs text-rose-500 font-medium">{errors.description}</span>}
+              </Field>
             </div>
           </div>
         )}

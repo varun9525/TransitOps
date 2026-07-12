@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, MapPin, Send, CircleCheck, Ban, Package } from "lucide-react";
 import { useStore, licenseExpired } from "../../data/store";
 import type { TripStatus } from "../../data/types";
@@ -19,8 +19,14 @@ import {
 const tabs: (TripStatus | "All")[] = ["All", "Draft", "Dispatched", "Completed", "Cancelled"];
 
 export function Trips() {
-  const { trips, vehicles, drivers, createTrip, dispatchTrip, completeTrip, cancelTrip, vehicleName, driverName, can, user } = useStore();
+  const { trips, vehicles, drivers, createTrip, dispatchTrip, completeTrip, cancelTrip, vehicleName, driverName, can, user, pageFilters } = useStore();
   const [tab, setTab] = useState<TripStatus | "All">("All");
+
+  useEffect(() => {
+    if (pageFilters && pageFilters.tab) {
+      setTab(pageFilters.tab);
+    }
+  }, [pageFilters]);
   const [open, setOpen] = useState(false);
   const [complete, setComplete] = useState<string | null>(null);
   
@@ -58,6 +64,51 @@ export function Trips() {
     : trips;
   const rows = filteredTrips.filter((t) => tab === "All" || t.status === tab);
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [completeErrors, setCompleteErrors] = useState<Record<string, string>>({});
+
+  const validate = () => {
+    const errs: Record<string, string> = {};
+    if (!form.source.trim()) errs.source = "Origin is required";
+    if (!form.destination.trim()) errs.destination = "Destination is required";
+    if (!form.vehicleId) errs.vehicleId = "An available vehicle must be selected";
+    if (!form.driverId) errs.driverId = "An available driver must be selected";
+    if (form.cargo <= 0) {
+      errs.cargo = "Cargo load must be greater than 0";
+    } else {
+      const v = vehicles.find((x) => x.id === form.vehicleId);
+      if (v && form.cargo > v.capacity) {
+        errs.cargo = `Cargo load (${form.cargo.toLocaleString()} kg) exceeds vehicle capacity (${v.capacity.toLocaleString()} kg)`;
+      }
+    }
+    if (form.plannedDistance <= 0) errs.plannedDistance = "Planned distance must be positive";
+    if (form.revenue <= 0) errs.revenue = "Revenue must be positive";
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const validateCompletion = () => {
+    const errs: Record<string, string> = {};
+    if (actual <= 0) errs.actual = "Actual distance must be positive";
+    const currOdo = activeVehicle?.odometer ?? 0;
+    if (finalOdometer < currOdo) {
+      errs.finalOdometer = `Final odometer must be at least ${currOdo} km`;
+    }
+    
+    if (fuelLiters > 0 || fuelCost > 0) {
+      if (fuelLiters <= 0) errs.fuelLiters = "Liters must be positive";
+      if (fuelCost <= 0) errs.fuelCost = "Cost must be positive";
+      if (fuelLiters > 0 && fuelCost > 0) {
+        const rate = fuelCost / fuelLiters;
+        if (rate < 85 || rate > 105) {
+          errs.fuelCost = `Suspicious rate (₹${rate.toFixed(1)}/L) is outside standard ₹85–₹105/L.`;
+        }
+      }
+    }
+    setCompleteErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   const openNew = () => {
     const firstV = assignableVehicles[0];
     const firstD = assignableDrivers[0];
@@ -71,22 +122,12 @@ export function Trips() {
       revenue: 1000,
       scheduledAt: "2026-07-15T08:00:00Z",
     });
+    setErrors({});
     setOpen(true);
   };
 
   const submit = async () => {
-    if (!form.source || !form.destination) {
-      toast.error("Source and destination are required");
-      return;
-    }
-    if (!form.vehicleId) {
-      toast.error("An available vehicle must be selected");
-      return;
-    }
-    if (!form.driverId) {
-      toast.error("An available driver must be selected");
-      return;
-    }
+    if (!validate()) return;
     const success = await createTrip(form);
     if (success) setOpen(false);
   };
@@ -198,29 +239,46 @@ export function Trips() {
         }
       >
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Origin"><TextInput value={form.source} onChange={(e) => set("source", e.target.value)} placeholder="Bengaluru Hub" /></Field>
-          <Field label="Destination"><TextInput value={form.destination} onChange={(e) => set("destination", e.target.value)} placeholder="Chennai DC" /></Field>
+          <Field label="Origin">
+            <TextInput value={form.source} onChange={(e) => { set("source", e.target.value); if (errors.source) validate(); }} placeholder="Bengaluru Hub" className={errors.source ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+            {errors.source && <span className="text-xs text-rose-500 font-medium">{errors.source}</span>}
+          </Field>
+          <Field label="Destination">
+            <TextInput value={form.destination} onChange={(e) => { set("destination", e.target.value); if (errors.destination) validate(); }} placeholder="Chennai DC" className={errors.destination ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+            {errors.destination && <span className="text-xs text-rose-500 font-medium">{errors.destination}</span>}
+          </Field>
           <Field label="Vehicle">
-            <SelectInput value={form.vehicleId} onChange={(e) => set("vehicleId", e.target.value)}>
+            <SelectInput value={form.vehicleId} onChange={(e) => { set("vehicleId", e.target.value); if (errors.vehicleId) validate(); }}>
               {assignableVehicles.length === 0 ? (
                 <option value="">No vehicles available</option>
               ) : (
                 assignableVehicles.map((v) => <option key={v.id} value={v.id}>{v.registration} · cap {v.capacity} kg</option>)
               )}
             </SelectInput>
+            {errors.vehicleId && <span className="text-xs text-rose-500 font-medium">{errors.vehicleId}</span>}
           </Field>
           <Field label="Driver">
-            <SelectInput value={form.driverId} onChange={(e) => set("driverId", e.target.value)}>
+            <SelectInput value={form.driverId} onChange={(e) => { set("driverId", e.target.value); if (errors.driverId) validate(); }}>
               {assignableDrivers.length === 0 ? (
                 <option value="">No drivers available</option>
               ) : (
                 assignableDrivers.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)
               )}
             </SelectInput>
+            {errors.driverId && <span className="text-xs text-rose-500 font-medium">{errors.driverId}</span>}
           </Field>
-          <Field label="Cargo / load (kg)"><TextInput type="number" value={form.cargo} onChange={(e) => set("cargo", +e.target.value)} /></Field>
-          <Field label="Planned distance (km)"><TextInput type="number" value={form.plannedDistance} onChange={(e) => set("plannedDistance", +e.target.value)} /></Field>
-          <Field label="Revenue (₹)"><TextInput type="number" value={form.revenue} onChange={(e) => set("revenue", +e.target.value)} /></Field>
+          <Field label="Cargo / load (kg)">
+            <TextInput type="number" value={form.cargo} onChange={(e) => { set("cargo", +e.target.value); if (errors.cargo) validate(); }} className={errors.cargo ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+            {errors.cargo && <span className="text-xs text-rose-500 font-medium">{errors.cargo}</span>}
+          </Field>
+          <Field label="Planned distance (km)">
+            <TextInput type="number" value={form.plannedDistance} onChange={(e) => { set("plannedDistance", +e.target.value); if (errors.plannedDistance) validate(); }} className={errors.plannedDistance ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+            {errors.plannedDistance && <span className="text-xs text-rose-500 font-medium">{errors.plannedDistance}</span>}
+          </Field>
+          <Field label="Revenue (₹)">
+            <TextInput type="number" value={form.revenue} onChange={(e) => { set("revenue", +e.target.value); if (errors.revenue) validate(); }} className={errors.revenue ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+            {errors.revenue && <span className="text-xs text-rose-500 font-medium">{errors.revenue}</span>}
+          </Field>
         </div>
 
         {form.vehicleId && form.plannedDistance > 0 && (
@@ -253,11 +311,7 @@ export function Trips() {
             <Button
               onClick={() => {
                 if (complete) {
-                  const currOdo = activeVehicle?.odometer ?? 0;
-                  if (finalOdometer < currOdo) {
-                    toast.error(`Final odometer must be at least ${currOdo} km`);
-                    return;
-                  }
+                  if (!validateCompletion()) return;
                   completeTrip(complete, actual, finalOdometer, fuelLiters, fuelCost);
                 }
                 setComplete(null);
@@ -276,11 +330,23 @@ export function Trips() {
           
           <div className="grid grid-cols-2 gap-4">
             <Field label="Actual distance (km)">
-              <TextInput type="number" value={actual} onChange={(e) => handleActualChange(+e.target.value)} />
+              <TextInput 
+                type="number" 
+                value={actual} 
+                onChange={(e) => { handleActualChange(+e.target.value); if (completeErrors.actual) validateCompletion(); }} 
+                className={completeErrors.actual ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}
+              />
+              {completeErrors.actual && <span className="text-xs text-rose-500 font-medium">{completeErrors.actual}</span>}
             </Field>
             
             <Field label="Final odometer reading (km)">
-              <TextInput type="number" value={finalOdometer} onChange={(e) => setFinalOdometer(+e.target.value)} />
+              <TextInput 
+                type="number" 
+                value={finalOdometer} 
+                onChange={(e) => { setFinalOdometer(+e.target.value); if (completeErrors.finalOdometer) validateCompletion(); }} 
+                className={completeErrors.finalOdometer ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}
+              />
+              {completeErrors.finalOdometer && <span className="text-xs text-rose-500 font-medium">{completeErrors.finalOdometer}</span>}
             </Field>
           </div>
 
@@ -288,10 +354,24 @@ export function Trips() {
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Fuel Logs (Optional)</h4>
             <div className="grid grid-cols-2 gap-4">
               <Field label="Fuel Consumed (Liters)">
-                <TextInput type="number" value={fuelLiters} onChange={(e) => setFuelLiters(+e.target.value)} placeholder="e.g. 50" />
+                <TextInput 
+                  type="number" 
+                  value={fuelLiters} 
+                  onChange={(e) => { setFuelLiters(+e.target.value); if (completeErrors.fuelLiters || completeErrors.fuelCost) validateCompletion(); }} 
+                  placeholder="e.g. 50" 
+                  className={completeErrors.fuelLiters ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}
+                />
+                {completeErrors.fuelLiters && <span className="text-xs text-rose-500 font-medium">{completeErrors.fuelLiters}</span>}
               </Field>
               <Field label="Fuel Cost (₹)">
-                <TextInput type="number" value={fuelCost} onChange={(e) => setFuelCost(+e.target.value)} placeholder="e.g. 450" />
+                <TextInput 
+                  type="number" 
+                  value={fuelCost} 
+                  onChange={(e) => { setFuelCost(+e.target.value); if (completeErrors.fuelCost) validateCompletion(); }} 
+                  placeholder="e.g. 450" 
+                  className={completeErrors.fuelCost ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}
+                />
+                {completeErrors.fuelCost && <span className="text-xs text-rose-500 font-medium">{completeErrors.fuelCost}</span>}
               </Field>
             </div>
           </div>

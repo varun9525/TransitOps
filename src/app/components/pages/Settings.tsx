@@ -8,30 +8,85 @@ const roleTone = (r: string): Tone =>
   r === "Fleet Manager" ? "indigo" : r === "Safety Officer" ? "violet" : r === "Financial Analyst" ? "amber" : "slate";
 
 export function Settings() {
-  const { user, users, register } = useStore();
+  const { user, users, register, saveDriver } = useStore();
   const [prefs, setPrefs] = useState({ email: true, digest: false, alerts: true });
   
   const [empName, setEmpName] = useState("");
   const [empEmail, setEmpEmail] = useState("");
   const [empPassword, setEmpPassword] = useState("");
   const [empRole, setEmpRole] = useState<Role>("Driver");
+
+  // Driver fields (shown when role === "Driver")
+  const [driverLicense, setDriverLicense] = useState("");
+  const [driverLicenseClass, setDriverLicenseClass] = useState("LMV");
+  const [driverLicenseExpiry, setDriverLicenseExpiry] = useState("2027-01-01");
+  const [driverRegion, setDriverRegion] = useState("North");
+
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = () => {
+    const errs: Record<string, string> = {};
+    if (!empName.trim()) errs.name = "Full name is required";
+    if (!empEmail.trim()) {
+      errs.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(empEmail)) {
+      errs.email = "Invalid email format";
+    }
+    if (!empPassword) {
+      errs.password = "Password is required";
+    } else if (empPassword.length < 6) {
+      errs.password = "Password must be at least 6 characters";
+    }
+
+    if (empRole === "Driver") {
+      if (!driverLicense.trim()) {
+        errs.license = "License number is required";
+      } else if (!/^[A-Z0-9-]{8,22}$/i.test(driverLicense)) {
+        errs.license = "License must be 8-22 alphanumeric characters/hyphens";
+      }
+      if (!driverLicenseExpiry) {
+        errs.licenseExpiry = "License expiry date is required";
+      }
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
 
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!empName || !empEmail || !empPassword || !empRole) return;
+    if (!validate()) return;
     setLoading(true);
     const success = await register(empName, empEmail, empPassword, empRole);
-    setLoading(false);
     if (success) {
+      if (empRole === "Driver") {
+        await saveDriver({
+          id: "",
+          name: empName,
+          license: driverLicense,
+          licenseClass: driverLicenseClass as any,
+          licenseExpiry: driverLicenseExpiry,
+          region: driverRegion,
+          status: "Available",
+          safetyScore: 85,
+          incidents: 0
+        });
+      }
+      // Reset state
       setEmpName("");
       setEmpEmail("");
       setEmpPassword("");
-      setEmpRole("Driver");
+      setDriverLicense("");
+      setDriverLicenseClass("LMV");
+      setDriverLicenseExpiry("2027-01-01");
+      setDriverRegion("North");
+      setErrors({});
     }
+    setLoading(false);
   };
 
   const isManager = user?.role === "Fleet Manager";
+  const isFormValid = empName && empEmail && empPassword && (empRole !== "Driver" || (driverLicense && driverLicenseExpiry));
 
   return (
     <div>
@@ -101,13 +156,36 @@ export function Settings() {
             </div>
             <form onSubmit={handleAddEmployee} className="space-y-3">
               <Field label="Full Name">
-                <TextInput value={empName} onChange={(e) => setEmpName(e.target.value)} placeholder="e.g. Anand Pillai" required />
+                <TextInput 
+                  value={empName} 
+                  onChange={(e) => { setEmpName(e.target.value); if (errors.name) validate(); }} 
+                  placeholder="e.g. Anand Pillai" 
+                  className={errors.name ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}
+                  required 
+                />
+                {errors.name && <span className="text-xs text-rose-500 font-medium">{errors.name}</span>}
               </Field>
               <Field label="Email Address">
-                <TextInput type="email" value={empEmail} onChange={(e) => setEmpEmail(e.target.value)} placeholder="name@transitops.io" required />
+                <TextInput 
+                  type="email" 
+                  value={empEmail} 
+                  onChange={(e) => { setEmpEmail(e.target.value); if (errors.email) validate(); }} 
+                  placeholder="name@transitops.io" 
+                  className={errors.email ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}
+                  required 
+                />
+                {errors.email && <span className="text-xs text-rose-500 font-medium">{errors.email}</span>}
               </Field>
               <Field label="Initial Password">
-                <TextInput type="password" value={empPassword} onChange={(e) => setEmpPassword(e.target.value)} placeholder="Initial password" required />
+                <TextInput 
+                  type="password" 
+                  value={empPassword} 
+                  onChange={(e) => { setEmpPassword(e.target.value); if (errors.password) validate(); }} 
+                  placeholder="Initial password (min 6 chars)" 
+                  className={errors.password ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}
+                  required 
+                />
+                {errors.password && <span className="text-xs text-rose-500 font-medium">{errors.password}</span>}
               </Field>
               <Field label="Role Designation">
                 <SelectInput value={empRole} onChange={(e: any) => setEmpRole(e.target.value)}>
@@ -117,7 +195,50 @@ export function Settings() {
                   <option value="Fleet Manager">Fleet Manager</option>
                 </SelectInput>
               </Field>
-              <Button type="submit" className="w-full mt-2" disabled={loading}>
+
+              {/* Dynamic Driver Fields */}
+              {empRole === "Driver" && (
+                <div className="border-t border-slate-100 pt-3 mt-3 space-y-3">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Driver Profile Registration</div>
+                  <Field label="License Number">
+                    <TextInput 
+                      value={driverLicense} 
+                      onChange={(e) => { setDriverLicense(e.target.value); if (errors.license) validate(); }} 
+                      placeholder="e.g. MH12AB123456" 
+                      className={errors.license ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}
+                      required 
+                    />
+                    {errors.license && <span className="text-xs text-rose-500 font-medium">{errors.license}</span>}
+                  </Field>
+                  <Field label="License Class">
+                    <SelectInput value={driverLicenseClass} onChange={(e) => setDriverLicenseClass(e.target.value)}>
+                      <option value="LMV">Light Motor Vehicle (LMV)</option>
+                      <option value="HMV">Heavy Motor Vehicle (HMV)</option>
+                      <option value="PSV">Public Service Vehicle (PSV)</option>
+                    </SelectInput>
+                  </Field>
+                  <Field label="License Expiry">
+                    <TextInput 
+                      type="date" 
+                      value={driverLicenseExpiry} 
+                      onChange={(e) => { setDriverLicenseExpiry(e.target.value); if (errors.licenseExpiry) validate(); }} 
+                      className={errors.licenseExpiry ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}
+                      required 
+                    />
+                    {errors.licenseExpiry && <span className="text-xs text-rose-500 font-medium">{errors.licenseExpiry}</span>}
+                  </Field>
+                  <Field label="Region Assignment">
+                    <SelectInput value={driverRegion} onChange={(e) => setDriverRegion(e.target.value)}>
+                      <option value="North">North</option>
+                      <option value="South">South</option>
+                      <option value="East">East</option>
+                      <option value="West">West</option>
+                    </SelectInput>
+                  </Field>
+                </div>
+              )}
+
+              <Button type="submit" className="w-full mt-2" disabled={loading || !isFormValid}>
                 {loading ? "Registering..." : "Create Account"}
               </Button>
             </form>

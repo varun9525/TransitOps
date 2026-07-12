@@ -41,11 +41,28 @@ export function Maintenance() {
     return false;
   });
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = () => {
+    const errs: Record<string, string> = {};
+    if (!form.vehicleId) errs.vehicleId = "Vehicle is required";
+    if (form.cost <= 0) errs.cost = "Cost must be positive";
+    if (!form.description.trim()) errs.description = "Description is required";
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   const submit = () => {
-    if (!form.description) return;
+    if (!validate()) return;
     addMaintenance(form);
     setOpen(false);
     setForm((f) => ({ ...f, description: "" }));
+    setErrors({});
+  };
+
+  const handleOpenModal = () => {
+    setErrors({});
+    setOpen(true);
   };
 
   return (
@@ -53,7 +70,7 @@ export function Maintenance() {
       <PageHeader
         title="Maintenance"
         subtitle="Service logs and shop status across the fleet."
-        action={canCreate && <Button onClick={() => setOpen(true)}><Plus className="size-4" /> Open log</Button>}
+        action={canCreate && <Button onClick={handleOpenModal}><Plus className="size-4" /> Open log</Button>}
       />
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-3">
@@ -170,9 +187,15 @@ export function Maintenance() {
                 {["Service", "Engine", "Brakes", "Tyres", "Electrical", "Bodywork"].map((o) => <option key={o}>{o}</option>)}
               </SelectInput>
             </Field>
-            <Field label="Estimated cost (₹)"><TextInput type="number" value={form.cost} onChange={(e) => set("cost", +e.target.value)} /></Field>
+            <Field label="Estimated cost (₹)">
+              <TextInput type="number" value={form.cost} onChange={(e) => { set("cost", +e.target.value); if (errors.cost) validate(); }} className={errors.cost ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+              {errors.cost && <span className="text-xs text-rose-500 font-medium">{errors.cost}</span>}
+            </Field>
           </div>
-          <Field label="Description"><TextInput value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="Describe the work required…" /></Field>
+          <Field label="Description">
+            <TextInput value={form.description} onChange={(e) => { set("description", e.target.value); if (errors.description) validate(); }} placeholder="Describe the work required…" className={errors.description ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+            {errors.description && <span className="text-xs text-rose-500 font-medium">{errors.description}</span>}
+          </Field>
         </div>
         <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2.5 text-xs text-amber-700">
           Opening a log automatically moves the vehicle to <b>In Shop</b> status.
