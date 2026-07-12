@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Download, Gauge, TrendingUp, CircleDollarSign, PiggyBank } from "lucide-react";
+import { Download, Gauge, TrendingUp, CircleDollarSign, PiggyBank, FileText } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -83,7 +83,12 @@ export function Reports() {
       <PageHeader
         title="Reports & Analytics"
         subtitle="Financial and operational performance across the fleet."
-        action={<Button variant="secondary" onClick={exportCsv}><Download className="size-4" /> Export CSV</Button>}
+        action={
+          <div className="flex gap-2 print:hidden">
+            <Button variant="secondary" onClick={() => window.print()}><FileText className="size-4" /> Print PDF</Button>
+            <Button variant="secondary" onClick={exportCsv}><Download className="size-4" /> Export CSV</Button>
+          </div>
+        }
       />
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
