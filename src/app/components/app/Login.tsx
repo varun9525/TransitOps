@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, Bus, Lock, Mail, ShieldCheck, CircleCheck, Sun, Moon } from "lucide-react";
+import { ArrowRight, Bus, Lock, Mail, ShieldCheck, CircleCheck, Sun, Moon, Eye, EyeOff, User } from "lucide-react";
 import { useStore } from "../../data/store";
 import type { Role } from "../../data/types";
 import { Button, Field, TextInput } from "./ui";
@@ -20,16 +20,24 @@ const demoEmail: Record<Role, string> = {
 };
 
 export function Login() {
-  const { login } = useStore();
+  const { login, register } = useStore();
   const { mode, toggle } = useTheme();
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("Fleet Manager");
   const [email, setEmail] = useState(demoEmail["Fleet Manager"]);
   const [password, setPassword] = useState("demo1234");
+  const [showPassword, setShowPassword] = useState(false);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
-    login(email, role);
+    if (isSignUp) {
+      if (!name || !email || !password) return;
+      register(name, email, password, role);
+    } else {
+      if (!email || !password) return;
+      login(email, password, role);
+    }
   };
 
   const pick = (r: Role) => {
@@ -75,7 +83,7 @@ export function Login() {
               rule-enforced and instantly visible.
             </p>
             <ul className="mt-7 flex flex-col gap-2.5 text-sm text-indigo-50">
-              {["RBAC-secured access", "Live trip dispatch", "Automatic status cascades", "CSV-ready reports"].map((t) => (
+              {["RBAC-secured access", "Live trip dispatch", "Automatic status cascades", "SQLite Database persistence"].map((t) => (
                 <li key={t} className="flex items-center gap-2.5">
                   <CircleCheck className="size-4.5 text-emerald-300" /> {t}
                 </li>
@@ -98,9 +106,11 @@ export function Login() {
           </div>
 
           <h1 className="[font-size:1.5rem] [font-weight:800] [letter-spacing:-0.02em] text-slate-900">
-            Sign in to your workspace
+            {isSignUp ? "Create your workspace account" : "Sign in to your workspace"}
           </h1>
-          <p className="mt-1 text-sm text-slate-500">Choose a role to explore the platform.</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {isSignUp ? "Fill in details to register as a team member." : "Choose a role to explore the platform."}
+          </p>
 
           <div className="mt-6 grid grid-cols-2 gap-2.5">
             {roles.map((r) => (
@@ -121,6 +131,22 @@ export function Login() {
           </div>
 
           <form onSubmit={submit} className="mt-6 space-y-4">
+            {isSignUp && (
+              <Field label="Full Name">
+                <div className="relative">
+                  <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                  <TextInput
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="pl-9"
+                    placeholder="John Doe"
+                    required
+                  />
+                </div>
+              </Field>
+            )}
+
             <Field label="Email">
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
@@ -130,30 +156,63 @@ export function Login() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-9"
                   placeholder="you@company.com"
+                  required
                 />
               </div>
             </Field>
+
             <Field label="Password">
               <div className="relative">
                 <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                 <TextInput
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 pr-10"
                   placeholder="••••••••"
+                  required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
               </div>
             </Field>
 
-            <Button type="submit" className="group w-full">
-              Sign in as {role}
+            <Button type="submit" className="group w-full mt-2">
+              {isSignUp ? `Register as ${role}` : `Sign in as ${role}`}
               <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
             </Button>
           </form>
 
-          <p className="mt-4 text-center text-xs text-slate-400">
-            Demo credentials are pre-filled — just press sign in.
+          <p className="mt-5 text-center text-xs text-slate-400">
+            {isSignUp ? (
+              <>
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => setIsSignUp(false)}
+                  className="font-semibold text-indigo-600 hover:underline"
+                >
+                  Sign In
+                </button>
+              </>
+            ) : (
+              <>
+                Don't have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => setIsSignUp(true)}
+                  className="font-semibold text-indigo-600 hover:underline"
+                >
+                  Sign Up
+                </button>
+              </>
+            )}
           </p>
         </div>
       </div>
