@@ -19,7 +19,7 @@ import {
 const tabs: (TripStatus | "All")[] = ["All", "Draft", "Dispatched", "Completed", "Cancelled"];
 
 export function Trips() {
-  const { trips, vehicles, drivers, createTrip, dispatchTrip, completeTrip, cancelTrip, vehicleName, driverName, can } = useStore();
+  const { trips, vehicles, drivers, createTrip, dispatchTrip, completeTrip, cancelTrip, vehicleName, driverName, can, user } = useStore();
   const [tab, setTab] = useState<TripStatus | "All">("All");
   const [open, setOpen] = useState(false);
   const [complete, setComplete] = useState<string | null>(null);
@@ -51,7 +51,12 @@ export function Trips() {
   });
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
 
-  const rows = trips.filter((t) => tab === "All" || t.status === tab);
+  const isDriver = user?.role === "Driver";
+  const activeDriver = isDriver ? drivers.find((d) => d.name === user?.name) : null;
+  const filteredTrips = isDriver
+    ? trips.filter((t) => activeDriver && t.driverId === activeDriver.id)
+    : trips;
+  const rows = filteredTrips.filter((t) => tab === "All" || t.status === tab);
 
   const openNew = () => {
     const firstV = assignableVehicles[0];
@@ -217,6 +222,20 @@ export function Trips() {
           <Field label="Planned distance (km)"><TextInput type="number" value={form.plannedDistance} onChange={(e) => set("plannedDistance", +e.target.value)} /></Field>
           <Field label="Revenue (₹)"><TextInput type="number" value={form.revenue} onChange={(e) => set("revenue", +e.target.value)} /></Field>
         </div>
+
+        {form.vehicleId && form.plannedDistance > 0 && (
+          <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 text-xs text-indigo-700 space-y-1 dark:border-indigo-500/20 dark:bg-indigo-500/10">
+            <span className="font-semibold text-indigo-900 dark:text-indigo-200">💡 Dynamic Fuel Cost Estimate:</span>
+            <div className="flex justify-between items-center mt-1">
+              <span>Planned Distance: <strong>{form.plannedDistance} km</strong></span>
+              <span>Vehicle Type: <strong>{vehicles.find(v => v.id === form.vehicleId)?.type} ({vehicles.find(v => v.id === form.vehicleId)?.type === "Truck" ? 6 : vehicles.find(v => v.id === form.vehicleId)?.type === "Van" ? 10 : vehicles.find(v => v.id === form.vehicleId)?.type === "Pickup" ? 12 : 8} km/L)</strong></span>
+            </div>
+            <div className="flex justify-between items-center text-sm font-semibold text-indigo-900 dark:text-indigo-100 border-t border-indigo-100/50 dark:border-indigo-500/20 pt-1.5 mt-1.5">
+              <span>Estimated Liters: <strong>{(form.plannedDistance / (vehicles.find(v => v.id === form.vehicleId)?.type === "Truck" ? 6 : vehicles.find(v => v.id === form.vehicleId)?.type === "Van" ? 10 : vehicles.find(v => v.id === form.vehicleId)?.type === "Pickup" ? 12 : 8)).toFixed(1)} L</strong></span>
+              <span>Estimated Cost: <strong>₹{Math.round((form.plannedDistance / (vehicles.find(v => v.id === form.vehicleId)?.type === "Truck" ? 6 : vehicles.find(v => v.id === form.vehicleId)?.type === "Van" ? 10 : vehicles.find(v => v.id === form.vehicleId)?.type === "Pickup" ? 12 : 8)) * 90).toLocaleString()}</strong></span>
+            </div>
+          </div>
+        )}
         <p className="mt-4 flex items-start gap-2 rounded-lg bg-indigo-50 px-3 py-2.5 text-xs text-indigo-700">
           <Package className="mt-0.5 size-4 shrink-0" />
           Trips are validated against vehicle capacity, availability and driver license before creation.
