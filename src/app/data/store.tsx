@@ -127,6 +127,8 @@ interface StoreShape {
   // vehicles
   saveVehicle: (v: Vehicle) => void;
   deleteVehicle: (id: string) => void;
+  fetchDocuments: (vehicleId: string) => Promise<any[]>;
+  addVehicleDocument: (vehicleId: string, doc: any) => Promise<void>;
   // drivers
   saveDriver: (d: Driver) => void;
   // trips
@@ -152,7 +154,7 @@ const StoreContext = createContext<StoreShape | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [users] = useState<User[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -163,13 +165,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // Function to load all data from backend
   const loadData = async () => {
     try {
-      const [v, d, t, m, f, e] = await Promise.all([
+      const [v, d, t, m, f, e, u] = await Promise.all([
         apiCall("/vehicles"),
         apiCall("/drivers"),
         apiCall("/trips"),
         apiCall("/maintenance"),
         apiCall("/fuel"),
         apiCall("/expenses"),
+        apiCall("/auth/users"),
       ]);
       setVehicles(v);
       setDrivers(d);
@@ -177,6 +180,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setMaintenance(m);
       setFuel(f);
       setExpenses(e);
+      setUsers(u);
     } catch (err: any) {
       console.error("Failed to load backend data:", err);
     }
@@ -268,6 +272,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           await apiCall(`/vehicles/${id}`, "DELETE");
           await loadData();
           toast.success("Vehicle removed");
+        } catch (err: any) {
+          toast.error(err.message);
+        }
+      },
+      fetchDocuments: async (vehicleId) => {
+        try {
+          return await apiCall(`/vehicles/${vehicleId}/documents`);
+        } catch (err: any) {
+          toast.error(err.message);
+          return [];
+        }
+      },
+      addVehicleDocument: async (vehicleId, doc) => {
+        try {
+          await apiCall(`/vehicles/${vehicleId}/documents`, "POST", doc);
         } catch (err: any) {
           toast.error(err.message);
         }

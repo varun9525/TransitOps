@@ -37,24 +37,8 @@ interface Doc {
   expiryDate: string;
 }
 
-const initialDocs: Record<string, Doc[]> = {
-  v1: [
-    { name: "Registration Certificate", type: "PDF", status: "Valid", expiryDate: "2028-12-10" },
-    { name: "Commercial Insurance", type: "PDF", status: "Valid", expiryDate: "2027-02-15" },
-    { name: "Pollution Under Control (PUC)", type: "PDF", status: "Expiring Soon", expiryDate: "2026-08-01" },
-  ],
-  v2: [
-    { name: "Registration Certificate", type: "PDF", status: "Valid", expiryDate: "2031-05-20" },
-    { name: "National Highway Permit", type: "PDF", status: "Valid", expiryDate: "2026-11-30" },
-  ],
-  v3: [
-    { name: "Registration Certificate", type: "PDF", status: "Valid", expiryDate: "2029-08-14" },
-    { name: "Commercial Insurance", type: "PDF", status: "Expired", expiryDate: "2026-06-01" },
-  ],
-};
-
 export function Vehicles() {
-  const { vehicles, saveVehicle, deleteVehicle, can } = useStore();
+  const { vehicles, saveVehicle, deleteVehicle, fetchDocuments, addVehicleDocument, can } = useStore();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Vehicle>(empty);
@@ -68,7 +52,7 @@ export function Vehicles() {
 
   // Document Management States
   const [activeDocVehicle, setActiveDocVehicle] = useState<Vehicle | null>(null);
-  const [docs, setDocs] = useState<Record<string, Doc[]>>(initialDocs);
+  const [docList, setDocList] = useState<Doc[]>([]);
   const [docName, setDocName] = useState("");
   const [docExpiry, setDocExpiry] = useState("2027-01-01");
 
@@ -110,13 +94,15 @@ export function Vehicles() {
     setOpen(false);
   };
 
-  const handleOpenDocs = (v: Vehicle) => {
+  const handleOpenDocs = async (v: Vehicle) => {
     setActiveDocVehicle(v);
     setDocName("");
     setDocExpiry("2027-01-01");
+    const list = await fetchDocuments(v.id);
+    setDocList(list);
   };
 
-  const handleUploadDoc = () => {
+  const handleUploadDoc = async () => {
     if (!docName || !activeDocVehicle) return;
     const expiry = new Date(docExpiry);
     const now = new Date("2026-07-12");
@@ -126,22 +112,19 @@ export function Vehicles() {
     if (diff < 0) status = "Expired";
     else if (diff <= 45) status = "Expiring Soon";
 
-    const newDoc: Doc = {
+    const newDoc = {
       name: docName,
       type: "PDF",
       status,
       expiryDate: docExpiry,
     };
 
-    setDocs((prev) => ({
-      ...prev,
-      [activeDocVehicle.id]: [...(prev[activeDocVehicle.id] ?? []), newDoc],
-    }));
+    await addVehicleDocument(activeDocVehicle.id, newDoc);
+    const list = await fetchDocuments(activeDocVehicle.id);
+    setDocList(list);
     toast.success(`Document "${docName}" added successfully for ${activeDocVehicle.registration}!`);
     setDocName("");
   };
-
-  const docList = activeDocVehicle ? (docs[activeDocVehicle.id] ?? []) : [];
 
   return (
     <div>
