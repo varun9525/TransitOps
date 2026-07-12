@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Plus, ShieldAlert, CheckCircle2, ShieldCheck, User, Calendar, Trash2, IndianRupee } from "lucide-react";
 import { useStore } from "../../data/store";
 import type { Incident } from "../../data/types";
@@ -53,10 +53,6 @@ export function Safety() {
     }
   };
 
-  // Helper helper function to mimic useMemo without importing if React doesn't auto-resolve it
-  function useMemo<T>(fn: () => T, deps: any[]): T {
-    return fn();
-  }
 
   return (
     <div>
