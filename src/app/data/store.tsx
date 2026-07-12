@@ -1,3 +1,4 @@
+// Real-time synchronization state store and permission guard checks
 import {
   createContext,
   useCallback,
