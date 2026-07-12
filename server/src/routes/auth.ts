@@ -70,4 +70,14 @@ router.get("/me", requireAuth, (req: AuthenticatedRequest, res: Response) => {
   return res.json({ user: req.user });
 });
 
+router.get("/users", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const db = await getDb();
+    const rows = await db.all("SELECT id, name, email, role FROM users ORDER BY name ASC;");
+    return res.json(rows);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

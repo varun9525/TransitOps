@@ -101,4 +101,30 @@ router.delete("/:id", requireRole(["Fleet Manager"]), async (req: AuthenticatedR
   }
 });
 
+router.get("/:id/documents", async (req, res) => {
+  try {
+    const db = await getDb();
+    const rows = await db.all("SELECT * FROM vehicle_documents WHERE vehicleId = ?;", req.params.id);
+    return res.json(rows);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/:id/documents", async (req, res) => {
+  const { name, type, status, expiryDate } = req.body;
+  try {
+    const db = await getDb();
+    const docId = Math.random().toString(36).slice(2, 9);
+    await db.run(
+      "INSERT INTO vehicle_documents (id, vehicleId, name, type, status, expiryDate) VALUES (?, ?, ?, ?, ?, ?);",
+      docId, req.params.id, name, type, status, expiryDate
+    );
+    const doc = await db.get("SELECT * FROM vehicle_documents WHERE id = ?;", docId);
+    return res.status(201).json(doc);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
