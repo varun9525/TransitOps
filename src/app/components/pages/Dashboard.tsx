@@ -24,7 +24,7 @@ import {
 } from "recharts";
 import { useStore, licenseExpired, licenseExpiringSoon } from "../../data/store";
 import { StatCard, tripTone, vehicleTone } from "../app/status";
-import { Card, PageHeader, StatusBadge, SelectInput } from "../app/ui";
+import { Card, PageHeader, StatusBadge, SelectInput, Button } from "../app/ui";
 
 const chartColors = ["#10b981", "#4f46e5", "#f59e0b", "#94a3b8"];
 const tooltipStyle = {
