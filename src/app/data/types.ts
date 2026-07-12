@@ -1,3 +1,4 @@
+// TypeScript type contracts and resource models for TransitOps
 export type Role = "Fleet Manager" | "Driver" | "Safety Officer" | "Financial Analyst";
 
 export type VehicleType = "Van" | "Truck" | "Bus" | "Pickup" | "Trailer";
