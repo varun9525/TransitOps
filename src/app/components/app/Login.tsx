@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, Bus, Lock, Mail, ShieldCheck, CircleCheck, Sun, Moon, Eye, EyeOff, User } from "lucide-react";
+import { ArrowRight, Bus, Lock, Mail, ShieldCheck, CircleCheck, Sun, Moon, Eye, EyeOff } from "lucide-react";
 import { useStore } from "../../data/store";
 import type { Role } from "../../data/types";
 import { Button, Field, TextInput } from "./ui";
@@ -13,36 +13,56 @@ const roles: { role: Role; blurb: string }[] = [
 ];
 
 export function Login() {
-  const { login, register } = useStore();
+  const { login } = useStore();
   const { mode, toggle } = useTheme();
   const [role, setRole] = useState<Role>("Fleet Manager");
   const [email, setEmail] = useState("admin@transitops.io");
   const [password, setPassword] = useState("demo1234");
   const [showPassword, setShowPassword] = useState(false);
-  const [isRegister, setIsRegister] = useState(false);
-  const [name, setName] = useState("");
+
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+
+  const handleEmailChange = (val: string) => {
+    setEmail(val);
+    if (!val) {
+      setEmailError("Email is required");
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+      setEmailError("Please enter a valid email address");
+    } else {
+      setEmailError("");
+    }
+  };
+
+  const handlePasswordChange = (val: string) => {
+    setPassword(val);
+    if (!val) {
+      setPasswordError("Password is required");
+    } else if (val.length < 6) {
+      setPasswordError("Password must be at least 6 characters");
+    } else {
+      setPasswordError("");
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
-    if (isRegister) {
-      if (!name) return;
-      await register(name, email, password, role);
-    } else {
-      await login(email, password, role);
-    }
+    if (!email || !password || emailError || passwordError) return;
+    await login(email, password, role);
   };
 
   const pick = (r: Role) => {
     setRole(r);
   };
 
+  const isValid = email && password && !emailError && !passwordError;
+
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
       <button
         onClick={toggle}
         aria-label="Toggle theme"
-        className="absolute right-5 top-5 z-20 flex size-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 ct-shadow-soft hover:bg-slate-50"
+        className="absolute right-5 top-5 z-20 flex size-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 ct-shadow-soft hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400"
       >
         {mode === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
       </button>
@@ -53,7 +73,7 @@ export function Login() {
         <div className="ct-float-slow absolute -bottom-40 -left-24 size-[440px] rounded-full bg-gradient-to-br from-violet-200/50 to-indigo-200/40 blur-3xl" />
       </div>
 
-      <div className="relative grid w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-100 bg-white ct-shadow-hover lg:grid-cols-2">
+      <div className="relative grid w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-100 bg-white ct-shadow-hover lg:grid-cols-2 dark:border-slate-800 dark:bg-slate-950">
         {/* Brand panel */}
         <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-indigo-600 to-violet-700 p-10 text-white lg:flex">
           <div className="pointer-events-none absolute -bottom-20 -right-20 size-72 rounded-full bg-white/10 blur-2xl" />
@@ -94,14 +114,14 @@ export function Login() {
             <span className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white">
               <Bus className="size-5" strokeWidth={2} />
             </span>
-            <span className="[font-size:1.15rem] [font-weight:800] text-slate-900">TransitOps</span>
+            <span className="[font-size:1.15rem] [font-weight:800] text-slate-900 dark:text-white">TransitOps</span>
           </div>
 
-          <h1 className="[font-size:1.5rem] [font-weight:800] [letter-spacing:-0.02em] text-slate-900">
-            {isRegister ? "Create your account" : "Sign in to your workspace"}
+          <h1 className="[font-size:1.5rem] [font-weight:800] [letter-spacing:-0.02em] text-slate-900 dark:text-white">
+            Sign in to your workspace
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {isRegister ? "Register a new account to get started." : "Choose a role and sign in."}
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Choose your assigned role and log in with your credentials.
           </p>
 
           <div className="mt-6 grid grid-cols-2 gap-2.5">
@@ -110,47 +130,32 @@ export function Login() {
                 key={r.role}
                 type="button"
                 onClick={() => pick(r.role)}
-                className={`rounded-xl border p-3 text-left transition-all duration-200 ${
+                className={`rounded-xl border p-3 text-left transition-all duration-205 ${
                   role === r.role
-                    ? "border-indigo-500 bg-indigo-50/60 ring-1 ring-indigo-200"
-                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                    ? "border-indigo-500 bg-indigo-50/60 ring-1 ring-indigo-200 dark:bg-indigo-950/20 dark:border-indigo-500"
+                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-850"
                 }`}
               >
-                <div className="text-sm font-semibold text-slate-900">{r.role}</div>
-                <div className="mt-0.5 text-xs text-slate-500">{r.blurb}</div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{r.role}</div>
+                <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{r.blurb}</div>
               </button>
             ))}
           </div>
 
           <form onSubmit={submit} className="mt-6 space-y-4">
-            {isRegister && (
-              <Field label="Full Name">
-                <div className="relative">
-                  <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                  <TextInput
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="pl-9"
-                    placeholder="John Doe"
-                    required
-                  />
-                </div>
-              </Field>
-            )}
-
-            <Field label="Email">
+            <Field label="Email Address">
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                 <TextInput
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-9"
+                  onChange={(e) => handleEmailChange(e.target.value)}
+                  className={`pl-9 ${emailError ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}`}
                   placeholder="you@company.com"
                   required
                 />
               </div>
+              {emailError && <span className="text-xs text-rose-500 font-medium mt-1">{emailError}</span>}
             </Field>
 
             <Field label="Password">
@@ -159,8 +164,8 @@ export function Login() {
                 <TextInput
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-9 pr-10"
+                  onChange={(e) => handlePasswordChange(e.target.value)}
+                  className={`pl-9 pr-10 ${passwordError ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}`}
                   placeholder="••••••••"
                   required
                 />
@@ -173,29 +178,21 @@ export function Login() {
                   {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
               </div>
+              {passwordError && <span className="text-xs text-rose-500 font-medium mt-1">{passwordError}</span>}
             </Field>
 
-            <Button type="submit" className="group w-full mt-2">
-              {isRegister ? `Register as ${role}` : `Sign in as ${role}`}
+            <Button type="submit" className="group w-full mt-2" disabled={!isValid}>
+              Sign in as {role}
               <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
             </Button>
           </form>
 
-          <div className="mt-5 text-center">
-            <button
-              type="button"
-              onClick={() => setIsRegister(!isRegister)}
-              className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-            >
-              {isRegister ? "Already have an account? Sign in" : "Don't have an account? Register"}
-            </button>
-          </div>
-
-          {!isRegister && (
-            <p className="mt-3 text-center text-xs text-slate-400 font-medium">
-              Default admin: admin@transitops.io / demo1234
-            </p>
-          )}
+          <p className="mt-5 text-center text-xs text-slate-400 dark:text-slate-500 font-medium">
+            Account creation is restricted. Contact your Fleet Manager for access.
+          </p>
+          <p className="mt-1 text-center text-xs text-slate-450 dark:text-slate-500 font-semibold">
+            Default manager credentials: admin@transitops.io / demo1234
+          </p>
         </div>
       </div>
     </div>
