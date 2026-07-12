@@ -1,3 +1,4 @@
+// Fuel ledger audits and AI OCR receipt parsing simulator
 import { useMemo, useState } from "react";
 import { Plus, Fuel as FuelIcon, Receipt, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
