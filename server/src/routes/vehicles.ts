@@ -14,10 +14,38 @@ router.get("/", async (req, res) => {
   }
 });
 
+function validateVehicle(data: any) {
+  const { registration, capacity, odometer, acquisitionCost, year } = data;
+  if (registration) {
+    const regPattern = /^[A-Z]{2}-\d{2}-[A-Z0-9]{1,3}-\d{4}$/;
+    if (!regPattern.test(registration)) {
+      return "Invalid Registration format. Must match Indian RTO standard (e.g., MH-12-PQ-9876).";
+    }
+  }
+  if (capacity !== undefined && capacity <= 0) {
+    return "Capacity must be greater than 0 kg.";
+  }
+  if (odometer !== undefined && odometer < 0) {
+    return "Odometer reading cannot be negative.";
+  }
+  if (acquisitionCost !== undefined && acquisitionCost <= 0) {
+    return "Acquisition cost must be greater than 0.";
+  }
+  if (year !== undefined && (year < 1995 || year > 2027)) {
+    return "Manufacturing year must be between 1995 and 2027.";
+  }
+  return null;
+}
+
 router.post("/", requireRole(["Fleet Manager"]), async (req: AuthenticatedRequest, res: Response) => {
   const { id, registration, name, type, region, capacity, status, odometer, acquisitionCost, year } = req.body;
   if (!registration || !name || !type || !region || capacity === undefined || !status || odometer === undefined || acquisitionCost === undefined || year === undefined) {
     return res.status(400).json({ error: "Missing required vehicle fields" });
+  }
+
+  const validationError = validateVehicle(req.body);
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
   }
 
   try {
@@ -43,6 +71,11 @@ router.post("/", requireRole(["Fleet Manager"]), async (req: AuthenticatedReques
 router.put("/:id", requireRole(["Fleet Manager"]), async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const { registration, name, type, region, capacity, status, odometer, acquisitionCost, year } = req.body;
+
+  const validationError = validateVehicle(req.body);
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
+  }
 
   try {
     const db = await getDb();

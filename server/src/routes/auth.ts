@@ -7,10 +7,14 @@ import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "transitops-super-secret-key-1234!";
 
-router.post("/register", async (req, res) => {
+router.post("/register", requireAuth, async (req: AuthenticatedRequest, res) => {
   const { name, email, password, role } = req.body;
   if (!name || !email || !password || !role) {
     return res.status(400).json({ error: "All fields are required" });
+  }
+
+  if (req.user?.role !== "Fleet Manager") {
+    return res.status(403).json({ error: "Access denied: Only Fleet Managers can register new employee accounts." });
   }
 
   try {
@@ -30,15 +34,14 @@ router.post("/register", async (req, res) => {
       id, name, email, hashedPassword, role
     );
 
-    const token = jwt.sign({ id, name, email, role }, JWT_SECRET, { expiresIn: "1d" });
-    return res.status(201).json({ token, user: { id, name, email, role } });
+    return res.status(201).json({ user: { id, name, email, role } });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
 });
 
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, role } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password are required" });
   }
@@ -53,6 +56,10 @@ router.post("/login", async (req, res) => {
     const valid = bcrypt.compareSync(password, user.password);
     if (!valid) {
       return res.status(400).json({ error: "Invalid credentials" });
+    }
+
+    if (role && user.role !== role) {
+      return res.status(400).json({ error: `Selected role does not match your registered role: ${user.role}` });
     }
 
     const token = jwt.sign(

@@ -25,6 +25,10 @@ router.post("/", requireRole(["Fleet Manager"]), async (req: AuthenticatedReques
     return res.status(400).json({ error: "Missing required trip fields" });
   }
 
+  if (cargo <= 0 || plannedDistance <= 0 || revenue <= 0) {
+    return res.status(400).json({ error: "Cargo load, planned distance, and revenue must be positive values" });
+  }
+
   try {
     const db = await getDb();
     const vehicle = await db.get("SELECT * FROM vehicles WHERE id = ?;", vehicleId);

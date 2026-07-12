@@ -14,10 +14,32 @@ router.get("/", async (req, res) => {
   }
 });
 
+function validateDriver(data: any) {
+  const { license, safetyScore, incidents } = data;
+  if (license) {
+    const licPattern = /^[A-Z0-9-]{8,22}$/i;
+    if (!licPattern.test(license)) {
+      return "Invalid License format. Must be between 8 and 22 alphanumeric characters/hyphens.";
+    }
+  }
+  if (safetyScore !== undefined && (safetyScore < 0 || safetyScore > 100)) {
+    return "Safety score must be between 0 and 100.";
+  }
+  if (incidents !== undefined && incidents < 0) {
+    return "Incidents count cannot be negative.";
+  }
+  return null;
+}
+
 router.post("/", requireRole(["Fleet Manager", "Safety Officer"]), async (req: AuthenticatedRequest, res: Response) => {
   const { id, name, license, licenseClass, licenseExpiry, region, status, safetyScore, incidents } = req.body;
   if (!name || !license || !licenseClass || !licenseExpiry || !region || !status || safetyScore === undefined || incidents === undefined) {
     return res.status(400).json({ error: "Missing required driver fields" });
+  }
+
+  const validationError = validateDriver(req.body);
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
   }
 
   try {
@@ -43,6 +65,11 @@ router.post("/", requireRole(["Fleet Manager", "Safety Officer"]), async (req: A
 router.put("/:id", requireRole(["Fleet Manager", "Safety Officer"]), async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const { name, license, licenseClass, licenseExpiry, region, status, safetyScore, incidents } = req.body;
+
+  const validationError = validateDriver(req.body);
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
+  }
 
   try {
     const db = await getDb();
