@@ -1,3 +1,4 @@
+// Single-pane console console layout optimized for active duty drivers
 import { useState } from "react";
 import { Truck, CheckCircle2, User, Calendar, MapPin, Gauge, Shield, Plus, Fuel, Landmark, ArrowRight, CheckSquare } from "lucide-react";
 import { useStore } from "../../data/store";
