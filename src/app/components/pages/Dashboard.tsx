@@ -1,3 +1,4 @@
+// Operations cockpit overview with preventive maintenance scheduler
 import { useMemo, useState } from "react";
 import {
   Truck,
