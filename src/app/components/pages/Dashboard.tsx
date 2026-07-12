@@ -37,7 +37,7 @@ const tooltipStyle = {
 };
 
 export function Dashboard() {
-  const { user, vehicles, drivers, trips } = useStore();
+  const { user, vehicles, drivers, trips, navigateTo } = useStore();
   const [type, setType] = useState("all");
   const [status, setStatus] = useState("all");
   const [region, setRegion] = useState("all");
@@ -82,14 +82,14 @@ export function Dashboard() {
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Active Vehicles" value={activeVehicles} icon={Truck} tone="indigo" hint="Currently on trip" />
-        <StatCard label="Available" value={available} icon={CheckCircle2} tone="green" hint="Ready to dispatch" />
-        <StatCard label="In Maintenance" value={inShop} icon={Wrench} tone="amber" hint="In the shop" />
-        <StatCard label="Fleet Utilization" value={`${utilization}%`} icon={Gauge} tone="violet" hint="Active / operable" />
-        <StatCard label="Active Trips" value={activeTrips} icon={Route} tone="indigo" hint="Dispatched now" />
-        <StatCard label="Pending Trips" value={pendingTrips} icon={Clock} tone="slate" hint="Awaiting dispatch" />
-        <StatCard label="Drivers On Duty" value={driversOnDuty} icon={Users} tone="green" hint="Available + on trip" />
-        <StatCard label="Compliance Alerts" value={complianceAlerts.length} icon={TriangleAlert} tone={complianceAlerts.length ? "red" : "slate"} hint="License issues" />
+        <StatCard label="Active Vehicles" value={activeVehicles} icon={Truck} tone="indigo" hint="Currently on trip" onClick={() => navigateTo("vehicles", { status: "On Trip" })} />
+        <StatCard label="Available" value={available} icon={CheckCircle2} tone="green" hint="Ready to dispatch" onClick={() => navigateTo("vehicles", { status: "Available" })} />
+        <StatCard label="In Maintenance" value={inShop} icon={Wrench} tone="amber" hint="In the shop" onClick={() => navigateTo("vehicles", { status: "In Shop" })} />
+        <StatCard label="Fleet Utilization" value={`${utilization}%`} icon={Gauge} tone="violet" hint="Active / operable" onClick={() => navigateTo("vehicles")} />
+        <StatCard label="Active Trips" value={activeTrips} icon={Route} tone="indigo" hint="Dispatched now" onClick={() => navigateTo("trips", { tab: "Dispatched" })} />
+        <StatCard label="Pending Trips" value={pendingTrips} icon={Clock} tone="slate" hint="Awaiting dispatch" onClick={() => navigateTo("trips", { tab: "Draft" })} />
+        <StatCard label="Drivers On Duty" value={driversOnDuty} icon={Users} tone="green" hint="Available + on trip" onClick={() => navigateTo("drivers")} />
+        <StatCard label="Compliance Alerts" value={complianceAlerts.length} icon={TriangleAlert} tone={complianceAlerts.length ? "red" : "slate"} hint="License issues" onClick={() => navigateTo("drivers", { sort: "expiry" })} />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">

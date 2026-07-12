@@ -30,15 +30,17 @@ export function StatCard({
   icon: Icon,
   tone = "indigo",
   hint,
+  onClick,
 }: {
   label: string;
   value: string | number;
   icon: LucideIcon;
   tone?: Tone;
   hint?: string;
+  onClick?: () => void;
 }) {
   return (
-    <Card hover className="flex flex-col gap-3 p-5">
+    <Card hover className="flex flex-col gap-3 p-5" onClick={onClick}>
       <div className="flex items-start justify-between">
         <span className="text-sm font-medium text-slate-500">{label}</span>
         <IconTile tone={tone} className="size-9">

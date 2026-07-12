@@ -109,7 +109,20 @@ async function apiCall(path: string, method = "GET", body?: any) {
   return data;
 }
 
+export type Page =
+  | "dashboard"
+  | "vehicles"
+  | "drivers"
+  | "trips"
+  | "maintenance"
+  | "fuel"
+  | "reports"
+  | "settings";
+
 interface StoreShape {
+  currentPage: Page;
+  pageFilters: any;
+  navigateTo: (page: Page, filters?: any) => void;
   user: User | null;
   users: User[];
   vehicles: Vehicle[];
@@ -155,6 +168,14 @@ interface StoreShape {
 const StoreContext = createContext<StoreShape | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const [currentPage, setCurrentPage] = useState<Page>("dashboard");
+  const [pageFilters, setPageFilters] = useState<any>(null);
+
+  const navigateTo = useCallback((page: Page, filters?: any) => {
+    setCurrentPage(page);
+    setPageFilters(filters);
+  }, []);
+
   const [user, setUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -423,6 +444,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   /* ---------- context value ---------- */
   const value: StoreShape = {
+    currentPage,
+    pageFilters,
+    navigateTo,
     user,
     users,
     vehicles,

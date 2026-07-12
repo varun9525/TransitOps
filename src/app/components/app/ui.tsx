@@ -6,16 +6,19 @@ export function Card({
   children,
   className = "",
   hover = false,
+  onClick,
 }: {
   children: ReactNode;
   className?: string;
   hover?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <div
+      onClick={onClick}
       className={`rounded-xl border border-slate-100 bg-white ct-shadow-soft ${
         hover ? "transition-all duration-200 hover:-translate-y-1 hover:ct-shadow-hover" : ""
-      } ${className}`}
+      } ${onClick ? "cursor-pointer" : ""} ${className}`}
     >
       {children}
     </div>

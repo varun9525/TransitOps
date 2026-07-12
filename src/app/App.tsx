@@ -14,8 +14,7 @@ import { Reports } from "./components/pages/Reports";
 import { Settings } from "./components/pages/Settings";
 
 function Shell() {
-  const { user } = useStore();
-  const [page, setPage] = useState<Page>("dashboard");
+  const { user, currentPage, navigateTo } = useStore();
 
   if (!user) return <Login />;
 
@@ -31,8 +30,8 @@ function Shell() {
   };
 
   return (
-    <AppShell page={page} setPage={setPage}>
-      {pages[page]}
+    <AppShell page={currentPage} setPage={navigateTo}>
+      {pages[currentPage]}
     </AppShell>
   );
 }
