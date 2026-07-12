@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -16,15 +17,6 @@ import type {
   User,
   Role,
 } from "./types";
-import {
-  seedVehicles,
-  seedDrivers,
-  seedTrips,
-  seedMaintenance,
-  seedFuel,
-  seedExpenses,
-  seedUsers,
-} from "./seed";
 
 /* ---------- RBAC ---------- */
 export type Resource =
@@ -95,7 +87,27 @@ export function licenseExpiringSoon(d: Driver) {
   return days >= 0 && days <= 45;
 }
 
-const uid = () => Math.random().toString(36).slice(2, 9);
+const API_URL = "http://localhost:5000/api";
+
+async function apiCall(path: string, method = "GET", body?: any) {
+  const token = localStorage.getItem("transitops-token");
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_URL}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || "Something went wrong");
+  }
+  return data;
+}
 
 interface StoreShape {
   user: User | null;
@@ -106,7 +118,8 @@ interface StoreShape {
   maintenance: MaintenanceLog[];
   fuel: FuelLog[];
   expenses: Expense[];
-  login: (email: string, role: Role) => void;
+  login: (email: string, password: string, role: Role) => Promise<boolean>;
+  register: (name: string, email: string, password: string, role: Role) => Promise<boolean>;
   logout: () => void;
   can: (r: Resource, a: Action) => boolean;
   vehicleName: (id: string) => string;
@@ -117,7 +130,7 @@ interface StoreShape {
   // drivers
   saveDriver: (d: Driver) => void;
   // trips
-  createTrip: (t: Omit<Trip, "id" | "reference" | "status">) => boolean;
+  createTrip: (t: Omit<Trip, "id" | "reference" | "status">) => Promise<boolean>;
   dispatchTrip: (id: string) => void;
   completeTrip: (
     id: string,
@@ -139,23 +152,58 @@ const StoreContext = createContext<StoreShape | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [users] = useState<User[]>(seedUsers);
-  const [vehicles, setVehicles] = useState<Vehicle[]>(seedVehicles);
-  const [drivers, setDrivers] = useState<Driver[]>(seedDrivers);
-  const [trips, setTrips] = useState<Trip[]>(seedTrips);
-  const [maintenance, setMaintenance] = useState<MaintenanceLog[]>(seedMaintenance);
-  const [fuel, setFuel] = useState<FuelLog[]>(seedFuel);
-  const [expenses, setExpenses] = useState<Expense[]>(seedExpenses);
+  const [users] = useState<User[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [maintenance, setMaintenance] = useState<MaintenanceLog[]>([]);
+  const [fuel, setFuel] = useState<FuelLog[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+
+  // Function to load all data from backend
+  const loadData = async () => {
+    try {
+      const [v, d, t, m, f, e] = await Promise.all([
+        apiCall("/vehicles"),
+        apiCall("/drivers"),
+        apiCall("/trips"),
+        apiCall("/maintenance"),
+        apiCall("/fuel"),
+        apiCall("/expenses"),
+      ]);
+      setVehicles(v);
+      setDrivers(d);
+      setTrips(t);
+      setMaintenance(m);
+      setFuel(f);
+      setExpenses(e);
+    } catch (err: any) {
+      console.error("Failed to load backend data:", err);
+    }
+  };
+
+  // Auth initialization
+  useEffect(() => {
+    const initializeAuth = async () => {
+      const token = localStorage.getItem("transitops-token");
+      if (!token) return;
+
+      try {
+        const data = await apiCall("/auth/me");
+        setUser(data.user);
+        loadData();
+      } catch (err) {
+        localStorage.removeItem("transitops-token");
+        setUser(null);
+      }
+    };
+    initializeAuth();
+  }, []);
 
   const value = useMemo<StoreShape>(() => {
     const vehicleName = (id: string) =>
       vehicles.find((v) => v.id === id)?.registration ?? "—";
     const driverName = (id: string) => drivers.find((d) => d.id === id)?.name ?? "—";
-
-    const setVehicleStatus = (id: string, status: Vehicle["status"]) =>
-      setVehicles((prev) => prev.map((v) => (v.id === id ? { ...v, status } : v)));
-    const setDriverStatus = (id: string, status: Driver["status"]) =>
-      setDrivers((prev) => prev.map((d) => (d.id === id ? { ...d, status } : d)));
 
     return {
       user,
@@ -166,12 +214,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       maintenance,
       fuel,
       expenses,
-      login: (email, role) => {
-        const found = users.find((u) => u.email === email);
-        setUser(found ?? { id: uid(), name: email.split("@")[0], email, role });
-        toast.success(`Signed in as ${role}`);
+      login: async (email, password, role) => {
+        try {
+          const res = await apiCall("/auth/login", "POST", { email, password });
+          localStorage.setItem("transitops-token", res.token);
+          setUser(res.user);
+          loadData();
+          toast.success(`Signed in successfully as ${role}`);
+          return true;
+        } catch (err: any) {
+          toast.error(err.message || "Failed to sign in");
+          return false;
+        }
       },
-      logout: () => setUser(null),
+      register: async (name, email, password, role) => {
+        try {
+          const res = await apiCall("/auth/register", "POST", { name, email, password, role });
+          localStorage.setItem("transitops-token", res.token);
+          setUser(res.user);
+          loadData();
+          toast.success(`Registered and signed in as ${role}`);
+          return true;
+        } catch (err: any) {
+          toast.error(err.message || "Registration failed");
+          return false;
+        }
+      },
+      logout: () => {
+        localStorage.removeItem("transitops-token");
+        setUser(null);
+        toast.info("Signed out");
+      },
       can: (r, a) => {
         if (!user) return false;
         return matrix[user.role]?.[r]?.includes(a) ?? false;
@@ -179,140 +252,114 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       vehicleName,
       driverName,
 
-      saveVehicle: (v) =>
-        setVehicles((prev) => {
-          const exists = prev.some((x) => x.id === v.id);
-          toast.success(exists ? "Vehicle updated" : "Vehicle added");
-          return exists ? prev.map((x) => (x.id === v.id ? v : x)) : [{ ...v, id: uid() }, ...prev];
-        }),
-      deleteVehicle: (id) => {
-        if (trips.some((t) => t.vehicleId === id && t.status === "Dispatched")) {
-          toast.error("Cannot delete a vehicle on an active trip");
-          return;
+      saveVehicle: async (v) => {
+        try {
+          const method = v.id ? "PUT" : "POST";
+          const path = v.id ? `/vehicles/${v.id}` : "/vehicles";
+          await apiCall(path, method, v);
+          await loadData();
+          toast.success(v.id ? "Vehicle updated" : "Vehicle added");
+        } catch (err: any) {
+          toast.error(err.message);
         }
-        setVehicles((prev) => prev.filter((v) => v.id !== id));
-        toast.success("Vehicle removed");
+      },
+      deleteVehicle: async (id) => {
+        try {
+          await apiCall(`/vehicles/${id}`, "DELETE");
+          await loadData();
+          toast.success("Vehicle removed");
+        } catch (err: any) {
+          toast.error(err.message);
+        }
       },
 
-      saveDriver: (d) =>
-        setDrivers((prev) => {
-          const exists = prev.some((x) => x.id === d.id);
-          toast.success(exists ? "Driver updated" : "Driver added");
-          return exists ? prev.map((x) => (x.id === d.id ? d : x)) : [{ ...d, id: uid() }, ...prev];
-        }),
-
-      createTrip: (t) => {
-        const vehicle = vehicles.find((v) => v.id === t.vehicleId);
-        const driver = drivers.find((d) => d.id === t.driverId);
-        if (!vehicle || !driver) {
-          toast.error("Select a vehicle and driver");
-          return false;
+      saveDriver: async (d) => {
+        try {
+          const method = d.id ? "PUT" : "POST";
+          const path = d.id ? `/drivers/${d.id}` : "/drivers";
+          await apiCall(path, method, d);
+          await loadData();
+          toast.success(d.id ? "Driver updated" : "Driver added");
+        } catch (err: any) {
+          toast.error(err.message);
         }
-        if (vehicle.status === "In Shop" || vehicle.status === "Retired") {
-          toast.error(`${vehicle.registration} is ${vehicle.status.toLowerCase()} and unavailable`);
-          return false;
-        }
-        if (driver.status === "Suspended") {
-          toast.error(`${driver.name} is suspended and cannot be dispatched`);
-          return false;
-        }
-        if (licenseExpired(driver)) {
-          toast.error(`${driver.name}'s license has expired`);
-          return false;
-        }
-        if (t.cargo > vehicle.capacity) {
-          toast.error(`Load ${t.cargo} exceeds capacity ${vehicle.capacity}`);
-          return false;
-        }
-        const ref = `TRP-${2046 + trips.length}`;
-        setTrips((prev) => [{ ...t, id: uid(), reference: ref, status: "Draft" }, ...prev]);
-        toast.success(`Trip ${ref} created`);
-        return true;
-      },
-      dispatchTrip: (id) => {
-        const trip = trips.find((t) => t.id === id);
-        if (!trip) return;
-        setTrips((prev) => prev.map((t) => (t.id === id ? { ...t, status: "Dispatched" } : t)));
-        setVehicleStatus(trip.vehicleId, "On Trip");
-        setDriverStatus(trip.driverId, "On Trip");
-        toast.success(`${trip.reference} dispatched`);
-      },
-      completeTrip: (id, actualDistance, finalOdometer, fuelLiters, fuelCost) => {
-        const trip = trips.find((t) => t.id === id);
-        if (!trip) return;
-        setTrips((prev) =>
-          prev.map((t) => (t.id === id ? { ...t, status: "Completed", actualDistance } : t)),
-        );
-        setVehicles((prev) =>
-          prev.map((v) =>
-            v.id === trip.vehicleId ? { ...v, status: "Available", odometer: finalOdometer } : v,
-          ),
-        );
-        setDriverStatus(trip.driverId, "Available");
-
-        if (fuelLiters && fuelLiters > 0) {
-          const cost = fuelCost ?? 0;
-          setFuel((prev) => [
-            {
-              id: uid(),
-              vehicleId: trip.vehicleId,
-              liters: fuelLiters,
-              cost: cost,
-              odometer: finalOdometer,
-              date: new Date().toISOString().split("T")[0],
-            },
-            ...prev,
-          ]);
-        }
-        toast.success(`${trip.reference} completed`);
-      },
-      cancelTrip: (id) => {
-        const trip = trips.find((t) => t.id === id);
-        if (!trip) return;
-        setTrips((prev) => prev.map((t) => (t.id === id ? { ...t, status: "Cancelled" } : t)));
-        if (trip.status === "Dispatched") {
-          setVehicleStatus(trip.vehicleId, "Available");
-          setDriverStatus(trip.driverId, "Available");
-        }
-        toast(`${trip.reference} cancelled`);
       },
 
-      addMaintenance: (m) => {
-        setMaintenance((prev) => [{ ...m, id: uid(), status: "Open" }, ...prev]);
-        setVehicleStatus(m.vehicleId, "In Shop");
-        toast.success("Maintenance log opened");
-      },
-      closeMaintenance: (id) => {
-        const log = maintenance.find((m) => m.id === id);
-        if (!log) return;
-        setMaintenance((prev) =>
-          prev.map((m) =>
-            m.id === id ? { ...m, status: "Closed", closedAt: "2026-07-12" } : m,
-          ),
-        );
-        // return vehicle to service if no other open logs
-        const others = maintenance.some(
-          (m) => m.vehicleId === log.vehicleId && m.id !== id && m.status === "Open",
-        );
-        if (!others) {
-          setVehicles((prev) =>
-            prev.map((v) =>
-              v.id === log.vehicleId && v.status !== "Retired"
-                ? { ...v, status: "Available" }
-                : v,
-            ),
-          );
+      createTrip: async (t) => {
+        try {
+          await apiCall("/trips", "POST", t);
+          await loadData();
+          toast.success("Trip created");
+          return true;
+        } catch (err: any) {
+          toast.error(err.message);
+          return false;
         }
-        toast.success("Maintenance closed");
+      },
+      dispatchTrip: async (id) => {
+        try {
+          await apiCall(`/trips/${id}/dispatch`, "POST");
+          await loadData();
+          toast.success("Trip dispatched");
+        } catch (err: any) {
+          toast.error(err.message);
+        }
+      },
+      completeTrip: async (id, actualDistance, finalOdometer, fuelLiters, fuelCost) => {
+        try {
+          await apiCall(`/trips/${id}/complete`, "POST", { actualDistance, finalOdometer, fuelLiters, fuelCost });
+          await loadData();
+          toast.success("Trip completed");
+        } catch (err: any) {
+          toast.error(err.message);
+        }
+      },
+      cancelTrip: async (id) => {
+        try {
+          await apiCall(`/trips/${id}/cancel`, "POST");
+          await loadData();
+          toast.success("Trip cancelled");
+        } catch (err: any) {
+          toast.error(err.message);
+        }
       },
 
-      addFuel: (f) => {
-        setFuel((prev) => [{ ...f, id: uid() }, ...prev]);
-        toast.success("Fuel log added");
+      addMaintenance: async (m) => {
+        try {
+          await apiCall("/maintenance", "POST", m);
+          await loadData();
+          toast.success("Maintenance log opened");
+        } catch (err: any) {
+          toast.error(err.message);
+        }
       },
-      addExpense: (e) => {
-        setExpenses((prev) => [{ ...e, id: uid() }, ...prev]);
-        toast.success("Expense added");
+      closeMaintenance: async (id) => {
+        try {
+          await apiCall(`/maintenance/${id}/close`, "POST");
+          await loadData();
+          toast.success("Maintenance closed");
+        } catch (err: any) {
+          toast.error(err.message);
+        }
+      },
+
+      addFuel: async (f) => {
+        try {
+          await apiCall("/fuel", "POST", f);
+          await loadData();
+          toast.success("Fuel log added");
+        } catch (err: any) {
+          toast.error(err.message);
+        }
+      },
+      addExpense: async (e) => {
+        try {
+          await apiCall("/expenses", "POST", e);
+          await loadData();
+          toast.success("Expense added");
+        } catch (err: any) {
+          toast.error(err.message);
+        }
       },
     };
   }, [user, users, vehicles, drivers, trips, maintenance, fuel, expenses]);
