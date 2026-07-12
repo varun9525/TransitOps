@@ -1,3 +1,4 @@
+// Interactive trip dispatcher and real-time corridor map simulator
 import { useState, useEffect } from "react";
 import { Plus, MapPin, Send, CircleCheck, Ban, Package, Activity, Gauge, Navigation } from "lucide-react";
 import { useStore, licenseExpired } from "../../data/store";
