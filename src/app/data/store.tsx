@@ -1,8 +1,8 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
-  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -46,7 +46,7 @@ export const matrix: Record<Role, Partial<Record<Resource, Action[]>>> = {
   "Fleet Manager": {
     dashboard: ["view"],
     vehicles: ["view", "create", "edit", "delete"],
-    drivers: ["view", "create", "edit"],
+    drivers: ["view", "create", "edit", "delete"],
     trips: ["view", "create", "edit", "delete"],
     maintenance: ["view", "create", "edit"],
     fuel: ["view", "create"],
@@ -118,6 +118,7 @@ interface StoreShape {
   maintenance: MaintenanceLog[];
   fuel: FuelLog[];
   expenses: Expense[];
+  refreshData: () => Promise<void>;
   login: (email: string, password: string, role: Role) => Promise<boolean>;
   register: (name: string, email: string, password: string, role: Role) => Promise<boolean>;
   logout: () => void;
@@ -125,29 +126,30 @@ interface StoreShape {
   vehicleName: (id: string) => string;
   driverName: (id: string) => string;
   // vehicles
-  saveVehicle: (v: Vehicle) => void;
-  deleteVehicle: (id: string) => void;
+  saveVehicle: (v: Vehicle) => Promise<void>;
+  deleteVehicle: (id: string) => Promise<void>;
   fetchDocuments: (vehicleId: string) => Promise<any[]>;
   addVehicleDocument: (vehicleId: string, doc: any) => Promise<void>;
   // drivers
-  saveDriver: (d: Driver) => void;
+  saveDriver: (d: Driver) => Promise<void>;
+  deleteDriver: (id: string) => Promise<void>;
   // trips
   createTrip: (t: Omit<Trip, "id" | "reference" | "status">) => Promise<boolean>;
-  dispatchTrip: (id: string) => void;
+  dispatchTrip: (id: string) => Promise<void>;
   completeTrip: (
     id: string,
     actualDistance: number,
     finalOdometer: number,
     fuelLiters?: number,
     fuelCost?: number,
-  ) => void;
-  cancelTrip: (id: string) => void;
+  ) => Promise<void>;
+  cancelTrip: (id: string) => Promise<void>;
   // maintenance
-  addMaintenance: (m: Omit<MaintenanceLog, "id" | "status">) => void;
-  closeMaintenance: (id: string) => void;
+  addMaintenance: (m: Omit<MaintenanceLog, "id" | "status">) => Promise<void>;
+  closeMaintenance: (id: string) => Promise<void>;
   // fuel + expense
-  addFuel: (f: Omit<FuelLog, "id">) => void;
-  addExpense: (e: Omit<Expense, "id">) => void;
+  addFuel: (f: Omit<FuelLog, "id">) => Promise<void>;
+  addExpense: (e: Omit<Expense, "id">) => Promise<void>;
 }
 
 const StoreContext = createContext<StoreShape | null>(null);
@@ -162,8 +164,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [fuel, setFuel] = useState<FuelLog[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
 
-  // Function to load all data from backend
-  const loadData = async () => {
+  // Stable function to load all data from backend
+  const loadData = useCallback(async () => {
     try {
       const [v, d, t, m, f, e, u] = await Promise.all([
         apiCall("/vehicles"),
@@ -172,7 +174,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         apiCall("/maintenance"),
         apiCall("/fuel"),
         apiCall("/expenses"),
-        apiCall("/auth/users"),
+        apiCall("/auth/users").catch(() => []),
       ]);
       setVehicles(v);
       setDrivers(d);
@@ -184,7 +186,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch (err: any) {
       console.error("Failed to load backend data:", err);
     }
-  };
+  }, []);
 
   // Auth initialization
   useEffect(() => {
@@ -195,193 +197,262 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       try {
         const data = await apiCall("/auth/me");
         setUser(data.user);
-        loadData();
+        await loadData();
       } catch (err) {
         localStorage.removeItem("transitops-token");
         setUser(null);
       }
     };
     initializeAuth();
+  }, [loadData]);
+
+  /* ---------- auth ---------- */
+  const login = useCallback(async (email: string, password: string, role: Role) => {
+    try {
+      const res = await apiCall("/auth/login", "POST", { email, password, role });
+      localStorage.setItem("transitops-token", res.token);
+      setUser(res.user);
+      await loadData();
+      toast.success(`Signed in successfully as ${role}`);
+      return true;
+    } catch (err: any) {
+      toast.error(err.message || "Failed to sign in");
+      return false;
+    }
+  }, [loadData]);
+
+  const register = useCallback(async (name: string, email: string, password: string, role: Role) => {
+    try {
+      const res = await apiCall("/auth/register", "POST", { name, email, password, role });
+      if (user) {
+        await loadData();
+        toast.success(`Employee account created for ${name} (${role})`);
+        return true;
+      }
+      localStorage.setItem("transitops-token", res.token);
+      setUser(res.user);
+      await loadData();
+      toast.success(`Registered and signed in as ${role}`);
+      return true;
+    } catch (err: any) {
+      toast.error(err.message || "Registration failed");
+      return false;
+    }
+  }, [loadData, user]);
+
+  const logout = useCallback(() => {
+    localStorage.removeItem("transitops-token");
+    setUser(null);
+    setVehicles([]);
+    setDrivers([]);
+    setTrips([]);
+    setMaintenance([]);
+    setFuel([]);
+    setExpenses([]);
+    setUsers([]);
+    toast.info("Signed out");
   }, []);
 
-  const value = useMemo<StoreShape>(() => {
-    const vehicleName = (id: string) =>
-      vehicles.find((v) => v.id === id)?.registration ?? "—";
-    const driverName = (id: string) => drivers.find((d) => d.id === id)?.name ?? "—";
+  const can = useCallback((r: Resource, a: Action) => {
+    if (!user) return false;
+    return matrix[user.role]?.[r]?.includes(a) ?? false;
+  }, [user]);
 
-    return {
-      user,
-      users,
-      vehicles,
-      drivers,
-      trips,
-      maintenance,
-      fuel,
-      expenses,
-      login: async (email, password, role) => {
-        try {
-          const res = await apiCall("/auth/login", "POST", { email, password });
-          localStorage.setItem("transitops-token", res.token);
-          setUser(res.user);
-          loadData();
-          toast.success(`Signed in successfully as ${role}`);
-          return true;
-        } catch (err: any) {
-          toast.error(err.message || "Failed to sign in");
-          return false;
-        }
-      },
-      register: async (name, email, password, role) => {
-        try {
-          const res = await apiCall("/auth/register", "POST", { name, email, password, role });
-          localStorage.setItem("transitops-token", res.token);
-          setUser(res.user);
-          loadData();
-          toast.success(`Registered and signed in as ${role}`);
-          return true;
-        } catch (err: any) {
-          toast.error(err.message || "Registration failed");
-          return false;
-        }
-      },
-      logout: () => {
-        localStorage.removeItem("transitops-token");
-        setUser(null);
-        toast.info("Signed out");
-      },
-      can: (r, a) => {
-        if (!user) return false;
-        return matrix[user.role]?.[r]?.includes(a) ?? false;
-      },
-      vehicleName,
-      driverName,
+  /* ---------- lookup helpers ---------- */
+  const vehicleName = useCallback((id: string) =>
+    vehicles.find((v) => v.id === id)?.registration ?? "—",
+  [vehicles]);
 
-      saveVehicle: async (v) => {
-        try {
-          const method = v.id ? "PUT" : "POST";
-          const path = v.id ? `/vehicles/${v.id}` : "/vehicles";
-          await apiCall(path, method, v);
-          await loadData();
-          toast.success(v.id ? "Vehicle updated" : "Vehicle added");
-        } catch (err: any) {
-          toast.error(err.message);
-        }
-      },
-      deleteVehicle: async (id) => {
-        try {
-          await apiCall(`/vehicles/${id}`, "DELETE");
-          await loadData();
-          toast.success("Vehicle removed");
-        } catch (err: any) {
-          toast.error(err.message);
-        }
-      },
-      fetchDocuments: async (vehicleId) => {
-        try {
-          return await apiCall(`/vehicles/${vehicleId}/documents`);
-        } catch (err: any) {
-          toast.error(err.message);
-          return [];
-        }
-      },
-      addVehicleDocument: async (vehicleId, doc) => {
-        try {
-          await apiCall(`/vehicles/${vehicleId}/documents`, "POST", doc);
-        } catch (err: any) {
-          toast.error(err.message);
-        }
-      },
+  const driverName = useCallback((id: string) =>
+    drivers.find((d) => d.id === id)?.name ?? "—",
+  [drivers]);
 
-      saveDriver: async (d) => {
-        try {
-          const method = d.id ? "PUT" : "POST";
-          const path = d.id ? `/drivers/${d.id}` : "/drivers";
-          await apiCall(path, method, d);
-          await loadData();
-          toast.success(d.id ? "Driver updated" : "Driver added");
-        } catch (err: any) {
-          toast.error(err.message);
-        }
-      },
+  /* ---------- vehicles ---------- */
+  const saveVehicle = useCallback(async (v: Vehicle) => {
+    try {
+      const method = v.id ? "PUT" : "POST";
+      const path = v.id ? `/vehicles/${v.id}` : "/vehicles";
+      await apiCall(path, method, v);
+      await loadData();
+      toast.success(v.id ? "Vehicle updated" : "Vehicle added");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  }, [loadData]);
 
-      createTrip: async (t) => {
-        try {
-          await apiCall("/trips", "POST", t);
-          await loadData();
-          toast.success("Trip created");
-          return true;
-        } catch (err: any) {
-          toast.error(err.message);
-          return false;
-        }
-      },
-      dispatchTrip: async (id) => {
-        try {
-          await apiCall(`/trips/${id}/dispatch`, "POST");
-          await loadData();
-          toast.success("Trip dispatched");
-        } catch (err: any) {
-          toast.error(err.message);
-        }
-      },
-      completeTrip: async (id, actualDistance, finalOdometer, fuelLiters, fuelCost) => {
-        try {
-          await apiCall(`/trips/${id}/complete`, "POST", { actualDistance, finalOdometer, fuelLiters, fuelCost });
-          await loadData();
-          toast.success("Trip completed");
-        } catch (err: any) {
-          toast.error(err.message);
-        }
-      },
-      cancelTrip: async (id) => {
-        try {
-          await apiCall(`/trips/${id}/cancel`, "POST");
-          await loadData();
-          toast.success("Trip cancelled");
-        } catch (err: any) {
-          toast.error(err.message);
-        }
-      },
+  const deleteVehicle = useCallback(async (id: string) => {
+    try {
+      await apiCall(`/vehicles/${id}`, "DELETE");
+      await loadData();
+      toast.success("Vehicle removed");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  }, [loadData]);
 
-      addMaintenance: async (m) => {
-        try {
-          await apiCall("/maintenance", "POST", m);
-          await loadData();
-          toast.success("Maintenance log opened");
-        } catch (err: any) {
-          toast.error(err.message);
-        }
-      },
-      closeMaintenance: async (id) => {
-        try {
-          await apiCall(`/maintenance/${id}/close`, "POST");
-          await loadData();
-          toast.success("Maintenance closed");
-        } catch (err: any) {
-          toast.error(err.message);
-        }
-      },
+  const fetchDocuments = useCallback(async (vehicleId: string) => {
+    try {
+      return await apiCall(`/vehicles/${vehicleId}/documents`);
+    } catch (err: any) {
+      toast.error(err.message);
+      return [];
+    }
+  }, []);
 
-      addFuel: async (f) => {
-        try {
-          await apiCall("/fuel", "POST", f);
-          await loadData();
-          toast.success("Fuel log added");
-        } catch (err: any) {
-          toast.error(err.message);
-        }
-      },
-      addExpense: async (e) => {
-        try {
-          await apiCall("/expenses", "POST", e);
-          await loadData();
-          toast.success("Expense added");
-        } catch (err: any) {
-          toast.error(err.message);
-        }
-      },
-    };
-  }, [user, users, vehicles, drivers, trips, maintenance, fuel, expenses]);
+  const addVehicleDocument = useCallback(async (vehicleId: string, doc: any) => {
+    try {
+      await apiCall(`/vehicles/${vehicleId}/documents`, "POST", doc);
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  }, []);
+
+  /* ---------- drivers ---------- */
+  const saveDriver = useCallback(async (d: Driver) => {
+    try {
+      const method = d.id ? "PUT" : "POST";
+      const path = d.id ? `/drivers/${d.id}` : "/drivers";
+      await apiCall(path, method, d);
+      await loadData();
+      toast.success(d.id ? "Driver updated" : "Driver added");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  }, [loadData]);
+
+  const deleteDriver = useCallback(async (id: string) => {
+    try {
+      await apiCall(`/drivers/${id}`, "DELETE");
+      await loadData();
+      toast.success("Driver removed");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  }, [loadData]);
+
+  /* ---------- trips ---------- */
+  const createTrip = useCallback(async (t: Omit<Trip, "id" | "reference" | "status">) => {
+    try {
+      await apiCall("/trips", "POST", t);
+      await loadData();
+      toast.success("Trip created");
+      return true;
+    } catch (err: any) {
+      toast.error(err.message);
+      return false;
+    }
+  }, [loadData]);
+
+  const dispatchTrip = useCallback(async (id: string) => {
+    try {
+      await apiCall(`/trips/${id}/dispatch`, "POST");
+      await loadData();
+      toast.success("Trip dispatched");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  }, [loadData]);
+
+  const completeTrip = useCallback(async (
+    id: string,
+    actualDistance: number,
+    finalOdometer: number,
+    fuelLiters?: number,
+    fuelCost?: number,
+  ) => {
+    try {
+      await apiCall(`/trips/${id}/complete`, "POST", { actualDistance, finalOdometer, fuelLiters, fuelCost });
+      await loadData();
+      toast.success("Trip completed");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  }, [loadData]);
+
+  const cancelTrip = useCallback(async (id: string) => {
+    try {
+      await apiCall(`/trips/${id}/cancel`, "POST");
+      await loadData();
+      toast.success("Trip cancelled");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  }, [loadData]);
+
+  /* ---------- maintenance ---------- */
+  const addMaintenance = useCallback(async (m: Omit<MaintenanceLog, "id" | "status">) => {
+    try {
+      await apiCall("/maintenance", "POST", m);
+      await loadData();
+      toast.success("Maintenance log opened");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  }, [loadData]);
+
+  const closeMaintenance = useCallback(async (id: string) => {
+    try {
+      await apiCall(`/maintenance/${id}/close`, "POST");
+      await loadData();
+      toast.success("Maintenance closed");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  }, [loadData]);
+
+  /* ---------- fuel + expenses ---------- */
+  const addFuel = useCallback(async (f: Omit<FuelLog, "id">) => {
+    try {
+      await apiCall("/fuel", "POST", f);
+      await loadData();
+      toast.success("Fuel log added");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  }, [loadData]);
+
+  const addExpense = useCallback(async (e: Omit<Expense, "id">) => {
+    try {
+      await apiCall("/expenses", "POST", e);
+      await loadData();
+      toast.success("Expense added");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  }, [loadData]);
+
+  /* ---------- context value ---------- */
+  const value: StoreShape = {
+    user,
+    users,
+    vehicles,
+    drivers,
+    trips,
+    maintenance,
+    fuel,
+    expenses,
+    refreshData: loadData,
+    login,
+    register,
+    logout,
+    can,
+    vehicleName,
+    driverName,
+    saveVehicle,
+    deleteVehicle,
+    fetchDocuments,
+    addVehicleDocument,
+    saveDriver,
+    deleteDriver,
+    createTrip,
+    dispatchTrip,
+    completeTrip,
+    cancelTrip,
+    addMaintenance,
+    closeMaintenance,
+    addFuel,
+    addExpense,
+  };
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

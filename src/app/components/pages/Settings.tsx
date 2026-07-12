@@ -1,14 +1,37 @@
 import { useState } from "react";
-import { Check, Minus, ShieldCheck, Users as UsersIcon } from "lucide-react";
+import { Check, Minus, ShieldCheck, Users as UsersIcon, UserPlus } from "lucide-react";
 import { useStore, resources, roles, matrix } from "../../data/store";
-import { Card, PageHeader, StatusBadge, type Tone } from "../app/ui";
+import type { Role } from "../../data/types";
+import { Card, PageHeader, StatusBadge, type Tone, Field, TextInput, SelectInput, Button } from "../app/ui";
 
 const roleTone = (r: string): Tone =>
   r === "Fleet Manager" ? "indigo" : r === "Safety Officer" ? "violet" : r === "Financial Analyst" ? "amber" : "slate";
 
 export function Settings() {
-  const { user, users } = useStore();
+  const { user, users, register } = useStore();
   const [prefs, setPrefs] = useState({ email: true, digest: false, alerts: true });
+  
+  const [empName, setEmpName] = useState("");
+  const [empEmail, setEmpEmail] = useState("");
+  const [empPassword, setEmpPassword] = useState("");
+  const [empRole, setEmpRole] = useState<Role>("Driver");
+  const [loading, setLoading] = useState(false);
+
+  const handleAddEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!empName || !empEmail || !empPassword || !empRole) return;
+    setLoading(true);
+    const success = await register(empName, empEmail, empPassword, empRole);
+    setLoading(false);
+    if (success) {
+      setEmpName("");
+      setEmpEmail("");
+      setEmpPassword("");
+      setEmpRole("Driver");
+    }
+  };
+
+  const isManager = user?.role === "Fleet Manager";
 
   return (
     <div>
@@ -41,7 +64,7 @@ export function Settings() {
         </Card>
 
         {/* Preferences */}
-        <Card className="p-5 lg:col-span-2">
+        <Card className={`p-5 ${isManager ? "lg:col-span-1" : "lg:col-span-2"}`}>
           <div className="mb-4 flex items-center gap-2">
             <ShieldCheck className="size-4 text-indigo-500" />
             <h3 className="[font-weight:700] text-slate-900">Preferences</h3>
@@ -68,6 +91,38 @@ export function Settings() {
             ))}
           </div>
         </Card>
+
+        {/* Add Employee Form (Fleet Manager Only) */}
+        {isManager && (
+          <Card className="p-5 lg:col-span-1">
+            <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
+              <UserPlus className="size-4 text-indigo-500 animate-pulse" />
+              <h3 className="[font-weight:700] text-slate-900">Add Employee</h3>
+            </div>
+            <form onSubmit={handleAddEmployee} className="space-y-3">
+              <Field label="Full Name">
+                <TextInput value={empName} onChange={(e) => setEmpName(e.target.value)} placeholder="e.g. Anand Pillai" required />
+              </Field>
+              <Field label="Email Address">
+                <TextInput type="email" value={empEmail} onChange={(e) => setEmpEmail(e.target.value)} placeholder="name@transitops.io" required />
+              </Field>
+              <Field label="Initial Password">
+                <TextInput type="password" value={empPassword} onChange={(e) => setEmpPassword(e.target.value)} placeholder="Initial password" required />
+              </Field>
+              <Field label="Role Designation">
+                <SelectInput value={empRole} onChange={(e: any) => setEmpRole(e.target.value)}>
+                  <option value="Driver">Driver</option>
+                  <option value="Safety Officer">Safety Officer</option>
+                  <option value="Financial Analyst">Financial Analyst</option>
+                  <option value="Fleet Manager">Fleet Manager</option>
+                </SelectInput>
+              </Field>
+              <Button type="submit" className="w-full mt-2" disabled={loading}>
+                {loading ? "Registering..." : "Create Account"}
+              </Button>
+            </form>
+          </Card>
+        )}
       </div>
 
       {/* RBAC matrix */}

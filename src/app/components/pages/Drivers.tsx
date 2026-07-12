@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Pencil, ShieldAlert, ShieldCheck, Mail, Search, Users, TriangleAlert, Award } from "lucide-react";
+import { Plus, Pencil, Trash2, ShieldAlert, ShieldCheck, Mail, Search, Users, TriangleAlert, Award } from "lucide-react";
 import { useStore, licenseExpired, licenseExpiringSoon } from "../../data/store";
 import type { Driver, DriverStatus } from "../../data/types";
 import { driverTone, StatCard } from "../app/status";
@@ -28,9 +28,10 @@ const empty: Driver = {
 };
 
 export function Drivers() {
-  const { drivers, saveDriver, can } = useStore();
+  const { drivers, saveDriver, deleteDriver, can } = useStore();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Driver>(empty);
+  const [saving, setSaving] = useState(false);
 
   // Filter/Search/Sort States
   const [query, setQuery] = useState("");
@@ -40,11 +41,27 @@ export function Drivers() {
 
   const canEdit = can("drivers", "edit");
   const canCreate = can("drivers", "create");
+  const canDelete = can("drivers", "delete");
 
   const set = <K extends keyof Driver>(k: K, val: Driver[K]) => setForm((f) => ({ ...f, [k]: val }));
   const openNew = () => { setForm(empty); setOpen(true); };
   const openEdit = (d: Driver) => { setForm(d); setOpen(true); };
-  const save = () => { if (!form.name || !form.license) return; saveDriver(form); setOpen(false); };
+
+  const save = async () => {
+    if (!form.name || !form.license) return;
+    setSaving(true);
+    try {
+      await saveDriver(form);
+      setOpen(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (d: Driver) => {
+    if (!confirm(`Are you sure you want to remove driver "${d.name}"?`)) return;
+    await deleteDriver(d.id);
+  };
 
   const handleSendReminder = (d: Driver) => {
     toast.success(`License renewal reminder sent to ${d.name} (${d.license})`);
@@ -195,6 +212,11 @@ export function Drivers() {
                         <Pencil className="size-4" />
                       </button>
                     )}
+                    {canDelete && (
+                      <button onClick={() => handleDelete(d)} className="flex size-8 items-center justify-center rounded-lg text-slate-500 hover:bg-rose-50 hover:text-rose-600" title="Remove driver">
+                        <Trash2 className="size-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -210,7 +232,7 @@ export function Drivers() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={save}>{form.id ? "Save changes" : "Add driver"}</Button>
+            <Button onClick={save} disabled={saving}>{saving ? "Saving…" : form.id ? "Save changes" : "Add driver"}</Button>
           </>
         }
       >

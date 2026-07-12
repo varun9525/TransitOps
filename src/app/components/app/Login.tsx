@@ -12,37 +12,29 @@ const roles: { role: Role; blurb: string }[] = [
   { role: "Financial Analyst", blurb: "Costs, fuel & profitability" },
 ];
 
-const demoEmail: Record<Role, string> = {
-  "Fleet Manager": "rahul@transitops.io",
-  Driver: "amit@transitops.io",
-  "Safety Officer": "priya@transitops.io",
-  "Financial Analyst": "karan@transitops.io",
-};
-
 export function Login() {
   const { login, register } = useStore();
   const { mode, toggle } = useTheme();
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("Fleet Manager");
-  const [email, setEmail] = useState(demoEmail["Fleet Manager"]);
+  const [email, setEmail] = useState("admin@transitops.io");
   const [password, setPassword] = useState("demo1234");
   const [showPassword, setShowPassword] = useState(false);
+  const [isRegister, setIsRegister] = useState(false);
+  const [name, setName] = useState("");
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSignUp) {
-      if (!name || !email || !password) return;
-      register(name, email, password, role);
+    if (!email || !password) return;
+    if (isRegister) {
+      if (!name) return;
+      await register(name, email, password, role);
     } else {
-      if (!email || !password) return;
-      login(email, password, role);
+      await login(email, password, role);
     }
   };
 
   const pick = (r: Role) => {
     setRole(r);
-    setEmail(demoEmail[r]);
   };
 
   return (
@@ -106,10 +98,10 @@ export function Login() {
           </div>
 
           <h1 className="[font-size:1.5rem] [font-weight:800] [letter-spacing:-0.02em] text-slate-900">
-            {isSignUp ? "Create your workspace account" : "Sign in to your workspace"}
+            {isRegister ? "Create your account" : "Sign in to your workspace"}
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            {isSignUp ? "Fill in details to register as a team member." : "Choose a role to explore the platform."}
+            {isRegister ? "Register a new account to get started." : "Choose a role and sign in."}
           </p>
 
           <div className="mt-6 grid grid-cols-2 gap-2.5">
@@ -131,7 +123,7 @@ export function Login() {
           </div>
 
           <form onSubmit={submit} className="mt-6 space-y-4">
-            {isSignUp && (
+            {isRegister && (
               <Field label="Full Name">
                 <div className="relative">
                   <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
@@ -184,36 +176,26 @@ export function Login() {
             </Field>
 
             <Button type="submit" className="group w-full mt-2">
-              {isSignUp ? `Register as ${role}` : `Sign in as ${role}`}
+              {isRegister ? `Register as ${role}` : `Sign in as ${role}`}
               <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
             </Button>
           </form>
 
-          <p className="mt-5 text-center text-xs text-slate-400">
-            {isSignUp ? (
-              <>
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => setIsSignUp(false)}
-                  className="font-semibold text-indigo-600 hover:underline"
-                >
-                  Sign In
-                </button>
-              </>
-            ) : (
-              <>
-                Don't have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => setIsSignUp(true)}
-                  className="font-semibold text-indigo-600 hover:underline"
-                >
-                  Sign Up
-                </button>
-              </>
-            )}
-          </p>
+          <div className="mt-5 text-center">
+            <button
+              type="button"
+              onClick={() => setIsRegister(!isRegister)}
+              className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+            >
+              {isRegister ? "Already have an account? Sign in" : "Don't have an account? Register"}
+            </button>
+          </div>
+
+          {!isRegister && (
+            <p className="mt-3 text-center text-xs text-slate-400 font-medium">
+              Default admin: admin@transitops.io / demo1234
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Wrench, CircleDollarSign, CircleCheck } from "lucide-react";
+import { Plus, Wrench, CircleDollarSign, CircleCheck, TriangleAlert } from "lucide-react";
 import { useStore } from "../../data/store";
 import { maintTone, StatCard } from "../app/status";
 import {
@@ -32,6 +32,15 @@ export function Maintenance() {
   const openCount = maintenance.filter((m) => m.status === "Open").length;
   const totalCost = maintenance.reduce((s, m) => s + m.cost, 0);
 
+  // Scan vehicles for service alerts
+  const serviceDueVehicles = vehicles.filter((v) => {
+    if (v.status === "Retired" || v.status === "In Shop") return false;
+    const closedLogs = maintenance.filter((m) => m.vehicleId === v.id && m.status === "Closed").length;
+    if (v.odometer > 40000 && closedLogs === 0) return true;
+    if (v.odometer > 60000 && closedLogs <= 1) return true;
+    return false;
+  });
+
   const submit = () => {
     if (!form.description) return;
     addMaintenance(form);
@@ -52,6 +61,47 @@ export function Maintenance() {
         <StatCard label="In Shop" value={vehicles.filter((v) => v.status === "In Shop").length} icon={Wrench} tone="indigo" />
         <StatCard label="Total Cost" value={`₹${totalCost.toLocaleString()}`} icon={CircleDollarSign} tone="violet" hint="All logs" />
       </div>
+
+      {serviceDueVehicles.length > 0 && (
+        <div className="mb-6 space-y-3">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-500 flex items-center gap-1.5">
+            <TriangleAlert className="size-4" />
+            Preventive Maintenance Alerts
+          </h4>
+          <div className="grid gap-4 md:grid-cols-2">
+            {serviceDueVehicles.map((v) => (
+              <div key={v.id} className="flex items-center justify-between rounded-xl border border-amber-100 bg-amber-50/50 p-4 text-xs text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                <div>
+                  <div className="font-semibold text-amber-900 dark:text-amber-200 text-sm">
+                    {v.registration} · {v.name}
+                  </div>
+                  <div className="mt-1">
+                    Odometer: <strong>{v.odometer.toLocaleString()} km</strong> · Service status: <span className="font-semibold text-amber-700 dark:text-amber-400">Overdue</span>
+                  </div>
+                </div>
+                {canCreate && (
+                  <Button
+                    size="sm"
+                    className="!bg-amber-600 hover:!bg-amber-700 !text-white border-none shadow-none font-semibold text-[11px] h-7 px-2.5 rounded-lg shrink-0"
+                    onClick={() => {
+                      setForm({
+                        vehicleId: v.id,
+                        type: "Service",
+                        description: "Scheduled preventive maintenance & overall health checkup",
+                        cost: 8500,
+                        openedAt: new Date().toISOString().split("T")[0],
+                      });
+                      setOpen(true);
+                    }}
+                  >
+                    Schedule Service
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <Card className="overflow-hidden">
         <div className="border-b border-slate-100 p-5"><h3 className="[font-weight:700] text-slate-900">Service Logs</h3></div>
