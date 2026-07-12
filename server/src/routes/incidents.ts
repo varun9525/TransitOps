@@ -1,3 +1,4 @@
+// Incidents API routing and safety compliance controls
 import { Router, Response } from "express";
 import { getDb } from "../db";
 import { AuthenticatedRequest, requireRole } from "../middleware/auth";
