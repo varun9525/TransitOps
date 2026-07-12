@@ -1,3 +1,4 @@
+// Fleet safety metrics scorecard and unresolved violation logs
 import { useState, useMemo } from "react";
 import { Plus, ShieldAlert, CheckCircle2, ShieldCheck, User, Calendar, Trash2, IndianRupee } from "lucide-react";
 import { useStore } from "../../data/store";
