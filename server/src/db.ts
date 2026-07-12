@@ -1,3 +1,4 @@
+// SQLite persistent storage adapter and database schema seeder
 import sqlite3 from "sqlite3";
 import { open, Database } from "sqlite";
 import path from "path";
