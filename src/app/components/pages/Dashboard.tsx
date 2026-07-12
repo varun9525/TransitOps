@@ -8,6 +8,7 @@ import {
   Users,
   Gauge,
   TriangleAlert,
+  MapPin,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -78,13 +79,6 @@ export function Dashboard() {
       <PageHeader
         title={`Welcome back, ${user?.name.split(" ")[0]}`}
         subtitle="Live operational snapshot across your fleet."
-        action={
-          <div className="flex flex-wrap gap-2">
-            <Filter value={type} onChange={setType} label="Type" options={["Van", "Truck", "Bus", "Pickup", "Trailer"]} />
-            <Filter value={status} onChange={setStatus} label="Status" options={["Available", "On Trip", "In Shop", "Retired"]} />
-            <Filter value={region} onChange={setRegion} label="Region" options={regions} />
-          </div>
-        }
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -137,6 +131,114 @@ export function Dashboard() {
         </Card>
       </div>
 
+      <Card className="mt-6 p-5">
+        <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3 dark:border-slate-800">
+          <div>
+            <h3 className="[font-weight:700] text-slate-900 flex items-center gap-2">
+              <MapPin className="size-5 text-indigo-500" />
+              Live Route Tracking Map
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">Real-time simulated telemetry along major freight corridors</p>
+          </div>
+          <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            Live Telemetry Active
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+          <div className="lg:col-span-3 bg-slate-950/90 rounded-xl p-4 border border-slate-900 overflow-hidden relative" style={{ minHeight: "220px" }}>
+            <svg className="w-full h-full min-h-[200px]" viewBox="0 0 700 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                  <circle cx="2" cy="2" r="1" fill="#334155" opacity="0.3" />
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#grid)" />
+
+              {/* Delhi -> Jaipur */}
+              <path d="M 120 40 L 240 90" stroke="#f59e0b" strokeWidth="2" strokeDasharray="4 4" opacity="0.6" />
+              <circle r="8" fill="#f59e0b" opacity="0.2">
+                <animateMotion path="M 120 40 L 240 90" dur="8s" repeatCount="indefinite" />
+                <animate attributeName="r" values="4;10;4" dur="2s" repeatCount="indefinite" />
+              </circle>
+              <circle r="4" fill="#fbbf24">
+                <animateMotion path="M 120 40 L 240 90" dur="8s" repeatCount="indefinite" />
+              </circle>
+
+              {/* Mumbai -> Pune */}
+              <path d="M 100 130 L 210 170" stroke="#38bdf8" strokeWidth="2" strokeDasharray="4 4" opacity="0.6" />
+              <circle r="8" fill="#38bdf8" opacity="0.2">
+                <animateMotion path="M 100 130 L 210 170" dur="5s" repeatCount="indefinite" />
+                <animate attributeName="r" values="4;10;4" dur="2s" repeatCount="indefinite" />
+              </circle>
+              <circle r="4" fill="#38bdf8">
+                <animateMotion path="M 100 130 L 210 170" dur="5s" repeatCount="indefinite" />
+              </circle>
+
+              {/* Bengaluru -> Chennai */}
+              <path d="M 450 160 L 590 140" stroke="#34d399" strokeWidth="2" strokeDasharray="4 4" opacity="0.6" />
+              <circle r="8" fill="#34d399" opacity="0.2">
+                <animateMotion path="M 450 160 L 590 140" dur="6s" repeatCount="indefinite" />
+                <animate attributeName="r" values="4;10;4" dur="2s" repeatCount="indefinite" />
+              </circle>
+              <circle r="4" fill="#34d399">
+                <animateMotion path="M 450 160 L 590 140" dur="6s" repeatCount="indefinite" />
+              </circle>
+
+              {/* Nodes and Labels */}
+              <circle cx="120" cy="40" r="5" fill="#f59e0b" />
+              <text x="120" y="25" fill="#94a3b8" fontSize="10" fontWeight="600" textAnchor="middle">Delhi NCR</text>
+              
+              <circle cx="240" cy="90" r="5" fill="#f59e0b" />
+              <text x="240" y="105" fill="#94a3b8" fontSize="10" fontWeight="600" textAnchor="middle">Jaipur Depot</text>
+
+              <circle cx="100" cy="130" r="5" fill="#38bdf8" />
+              <text x="100" y="120" fill="#94a3b8" fontSize="10" fontWeight="600" textAnchor="middle">Mumbai JNPT</text>
+              
+              <circle cx="210" cy="170" r="5" fill="#38bdf8" />
+              <text x="210" y="185" fill="#94a3b8" fontSize="10" fontWeight="600" textAnchor="middle">Pune Logistics</text>
+
+              <circle cx="450" cy="160" r="5" fill="#34d399" />
+              <text x="450" y="175" fill="#94a3b8" fontSize="10" fontWeight="600" textAnchor="middle">Bengaluru WH</text>
+              
+              <circle cx="590" cy="140" r="5" fill="#34d399" />
+              <text x="590" y="130" fill="#94a3b8" fontSize="10" fontWeight="600" textAnchor="middle">Chennai DC</text>
+            </svg>
+          </div>
+
+          <div className="space-y-3 flex flex-col justify-center">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Active Corridors</h4>
+            <div className="space-y-2">
+              <div className="rounded-lg border border-slate-100 p-2.5 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/30 text-xs">
+                <div className="flex justify-between items-center font-semibold">
+                  <span className="text-slate-800 dark:text-slate-200">MH-12-PQ-9876</span>
+                  <span className="text-sky-500 font-bold">West</span>
+                </div>
+                <div className="text-slate-500 mt-0.5">Mumbai JNPT → Pune Hub</div>
+              </div>
+              <div className="rounded-lg border border-slate-100 p-2.5 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/30 text-xs">
+                <div className="flex justify-between items-center font-semibold">
+                  <span className="text-slate-800 dark:text-slate-200">DL-01-CA-4321</span>
+                  <span className="text-amber-500 font-bold">North</span>
+                </div>
+                <div className="text-slate-500 mt-0.5">Delhi NCR → Jaipur Depot</div>
+              </div>
+              <div className="rounded-lg border border-slate-100 p-2.5 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/30 text-xs">
+                <div className="flex justify-between items-center font-semibold">
+                  <span className="text-slate-800 dark:text-slate-200">KA-03-GG-7788</span>
+                  <span className="text-emerald-500 font-bold">South</span>
+                </div>
+                <div className="text-slate-500 mt-0.5">Bengaluru WH → Chennai DC</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <Card className="overflow-hidden lg:col-span-2">
           <div className="border-b border-slate-100 p-5">
@@ -158,9 +260,18 @@ export function Dashboard() {
         </Card>
 
         <Card className="overflow-hidden">
-          <div className="border-b border-slate-100 p-5">
-            <h3 className="[font-weight:700] text-slate-900">Filtered Fleet</h3>
-            <p className="text-sm text-slate-500">{filtered.length} match current filters</p>
+          <div className="border-b border-slate-100 p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="[font-weight:700] text-slate-900">Filtered Fleet</h3>
+                <p className="text-sm text-slate-500">{filtered.length} match current filters</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Filter value={type} onChange={setType} label="Type" options={["Van", "Truck", "Bus", "Pickup", "Trailer"]} />
+              <Filter value={status} onChange={setStatus} label="Status" options={["Available", "On Trip", "In Shop", "Retired"]} />
+              <Filter value={region} onChange={setRegion} label="Region" options={regions} />
+            </div>
           </div>
           <div className="max-h-[260px] divide-y divide-slate-100 overflow-auto">
             {filtered.map((v) => (
