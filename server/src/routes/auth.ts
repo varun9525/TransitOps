@@ -7,23 +7,24 @@ import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "transitops-super-secret-key-1234!";
 
-router.post("/register", requireAuth, async (req: AuthenticatedRequest, res) => {
+router.post("/register", async (req: AuthenticatedRequest, res) => {
   const { name, email, password, role } = req.body;
   if (!name || !email || !password || !role) {
     return res.status(400).json({ error: "All fields are required" });
   }
 
-  if (req.user?.role !== "Fleet Manager") {
-    return res.status(403).json({ error: "Access denied: Only Fleet Managers can register new employee accounts." });
-  }
-
   try {
     const db = await getDb();
-    
+
     // Check if user already exists
     const existing = await db.get("SELECT * FROM users WHERE email = ?;", email);
     if (existing) {
       return res.status(400).json({ error: "Email already registered" });
+    }
+
+    // If there's a logged-in user, only Fleet Manager can register others
+    if (req.user && req.user.role !== "Fleet Manager") {
+      return res.status(403).json({ error: "Access denied: Only Fleet Managers can register new employee accounts." });
     }
 
     const hashedPassword = bcrypt.hashSync(password, 10);
@@ -34,7 +35,18 @@ router.post("/register", requireAuth, async (req: AuthenticatedRequest, res) => 
       id, name, email, hashedPassword, role
     );
 
-    return res.status(201).json({ user: { id, name, email, role } });
+    // If registering while already logged in (Fleet Manager adding employee)
+    if (req.user) {
+      return res.status(201).json({ user: { id, name, email, role } });
+    }
+
+    // Self-registration: auto-login
+    const token = jwt.sign(
+      { id, name, email, role },
+      JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+    return res.status(201).json({ token, user: { id, name, email, role } });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

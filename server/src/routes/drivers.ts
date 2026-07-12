@@ -108,4 +108,27 @@ router.put("/:id", requireRole(["Fleet Manager", "Safety Officer"]), async (req:
   }
 });
 
+router.delete("/:id", requireRole(["Fleet Manager"]), async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    const db = await getDb();
+    // Check if driver has active trips
+    const activeTrip = await db.get("SELECT * FROM trips WHERE driverId = ? AND status = 'Dispatched';", id);
+    if (activeTrip) {
+      return res.status(400).json({ error: "Cannot delete a driver who is on an active trip" });
+    }
+
+    const driver = await db.get("SELECT * FROM drivers WHERE id = ?;", id);
+    if (!driver) {
+      return res.status(404).json({ error: "Driver not found" });
+    }
+
+    await db.run("DELETE FROM drivers WHERE id = ?;", id);
+    return res.json({ message: "Driver removed successfully" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
