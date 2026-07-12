@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Production build outputs
+dist/
+dist-ssr/
+
+# IDE / Editor configuration
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# System / OS files
+.DS_Store
+Thumbs.db
+
+# Large media files
+*.pdf
+*.png
+*.jpg
+*.jpeg
+node_modules
