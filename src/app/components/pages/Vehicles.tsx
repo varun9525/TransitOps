@@ -301,11 +301,11 @@ export function Vehicles() {
                 {docList.map((d, i) => (
                   <div key={i} className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50/50 p-3 text-sm">
                     <div>
-                      <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                      <div className="font-semibold text-zinc-800 dark:text-zinc-100 flex items-center gap-1.5">
                         <FileText className="size-4 text-violet-500 shrink-0" />
                         {d.name}
                       </div>
-                      <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                      <div className="text-[11px] text-zinc-500 dark:text-zinc-300 mt-0.5 flex items-center gap-1">
                         <Calendar className="size-3 shrink-0" />
                         Expires on {d.expiryDate}
                       </div>
