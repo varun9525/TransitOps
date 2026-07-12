@@ -13,10 +13,10 @@ const roles: { role: Role; blurb: string }[] = [
 ];
 
 const demoEmail: Record<Role, string> = {
-  "Fleet Manager": "maya@transitops.io",
-  Driver: "diego@transitops.io",
-  "Safety Officer": "sara@transitops.io",
-  "Financial Analyst": "liam@transitops.io",
+  "Fleet Manager": "rahul@transitops.io",
+  Driver: "amit@transitops.io",
+  "Safety Officer": "priya@transitops.io",
+  "Financial Analyst": "karan@transitops.io",
 };
 
 export function Login() {
