@@ -34,25 +34,45 @@ const tooltipStyle = {
 type Tab = "fuel" | "expenses";
 
 export function Fuel() {
-  const { fuel, expenses, vehicles, addFuel, addExpense, vehicleName, can } = useStore();
+  const { fuel, expenses, vehicles, trips, drivers, addFuel, addExpense, vehicleName, can, user } = useStore();
   const [tab, setTab] = useState<Tab>("fuel");
   const [open, setOpen] = useState(false);
   const canCreate = can("fuel", "create");
 
+  const isDriver = user?.role === "Driver";
+  
+  // Find driver's active vehicle
+  const driverVehicle = useMemo(() => {
+    if (!isDriver) return null;
+    const activeDrv = drivers.find((d) => d.name === user?.name);
+    const activeT = activeDrv ? trips.find((t) => t.driverId === activeDrv.id && t.status === "Dispatched") : null;
+    return activeT ? vehicles.find((v) => v.id === activeT.vehicleId) : null;
+  }, [isDriver, user, drivers, trips, vehicles]);
+
+  const defaultVehicleId = isDriver ? (driverVehicle?.id ?? "") : (vehicles[0]?.id ?? "");
+
   const [fuelForm, setFuelForm] = useState({
-    vehicleId: vehicles[0]?.id ?? "",
+    vehicleId: defaultVehicleId,
     liters: 40,
-    cost: 4000,
+    cost: 3800,
     odometer: 0,
-    date: "2026-07-12",
+    date: new Date().toISOString().split("T")[0],
   });
   const [expForm, setExpForm] = useState({
-    vehicleId: vehicles[0]?.id ?? "",
+    vehicleId: defaultVehicleId,
     category: "Tolls",
     description: "",
     amount: 500,
-    date: "2026-07-12",
+    date: new Date().toISOString().split("T")[0],
   });
+
+  // Sync default vehicle when driver vehicle is loaded
+  useMemo(() => {
+    if (defaultVehicleId) {
+      setFuelForm((f) => ({ ...f, vehicleId: defaultVehicleId, odometer: driverVehicle?.odometer ?? 0 }));
+      setExpForm((e) => ({ ...e, vehicleId: defaultVehicleId }));
+    }
+  }, [defaultVehicleId, driverVehicle]);
 
   const totalFuel = fuel.reduce((s, f) => s + f.cost, 0);
   const totalLiters = fuel.reduce((s, f) => s + f.liters, 0);
@@ -70,9 +90,45 @@ export function Fuel() {
 
   const submit = () => {
     if (tab === "fuel") {
+      const v = vehicles.find((x) => x.id === fuelForm.vehicleId);
+      if (!v) {
+        toast.error("Please select a valid vehicle");
+        return;
+      }
+      if (fuelForm.liters <= 0 || fuelForm.cost <= 0) {
+        toast.error("Liters and Cost must be greater than 0");
+        return;
+      }
+      // Anti-theft: fuel price check (₹85 to ₹105 / L)
+      const rate = fuelForm.cost / fuelForm.liters;
+      if (rate < 85 || rate > 105) {
+        toast.error(`Suspicious Cost Check: ₹${rate.toFixed(1)}/L is outside standard Indian rates (₹85–₹105/L). Entry rejected.`);
+        return;
+      }
+      // Anti-theft: odometer progression check
+      if (fuelForm.odometer <= v.odometer) {
+        toast.error(`Odometer Error: Reading must exceed the vehicle's current odometer (${v.odometer.toLocaleString()} km).`);
+        return;
+      }
+      if (fuelForm.odometer > v.odometer + 1500) {
+        toast.error("Odometer warning: Value is unrealistically high (+1500 km). Please verify.");
+        return;
+      }
       addFuel(fuelForm);
     } else {
-      if (!expForm.description) return;
+      if (!expForm.description) {
+        toast.error("Expense description is required");
+        return;
+      }
+      if (expForm.amount <= 0) {
+        toast.error("Amount must be greater than 0");
+        return;
+      }
+      // Anti-theft: cap toll expenses to ₹5,000 per entry
+      if (expForm.category === "Tolls" && expForm.amount > 5000) {
+        toast.error("Anti-Theft Warning: Toll expense exceeds maximum allowed limit of ₹5,000 per entry.");
+        return;
+      }
       addExpense(expForm);
     }
     setOpen(false);
@@ -191,15 +247,23 @@ export function Fuel() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={submit}>Add {tab === "fuel" ? "fuel" : "expense"}</Button>
+            {(!isDriver || driverVehicle) && <Button onClick={submit}>Add {tab === "fuel" ? "fuel" : "expense"}</Button>}
           </>
         }
       >
-        {tab === "fuel" ? (
+        {isDriver && !driverVehicle ? (
+          <div className="p-4 bg-rose-50 text-rose-700 text-xs rounded-xl border border-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20">
+            <strong>Access Denied:</strong> You are not currently assigned to any active dispatched trips. Only active drivers can log fuel or expenses.
+          </div>
+        ) : tab === "fuel" ? (
           <div className="grid grid-cols-2 gap-4">
             <Field label="Vehicle">
-              <SelectInput value={fuelForm.vehicleId} onChange={(e) => setFuelForm((f) => ({ ...f, vehicleId: e.target.value }))}>
-                {vehicles.map((v) => <option key={v.id} value={v.id}>{v.registration}</option>)}
+              <SelectInput value={fuelForm.vehicleId} onChange={(e) => setFuelForm((f) => ({ ...f, vehicleId: e.target.value }))} disabled={isDriver}>
+                {isDriver && driverVehicle ? (
+                  <option value={driverVehicle.id}>{driverVehicle.registration}</option>
+                ) : (
+                  vehicles.map((v) => <option key={v.id} value={v.id}>{v.registration}</option>)
+                )}
               </SelectInput>
             </Field>
             <Field label="Date"><TextInput type="date" value={fuelForm.date} onChange={(e) => setFuelForm((f) => ({ ...f, date: e.target.value }))} /></Field>
@@ -210,8 +274,12 @@ export function Fuel() {
         ) : (
           <div className="grid grid-cols-2 gap-4">
             <Field label="Vehicle">
-              <SelectInput value={expForm.vehicleId} onChange={(e) => setExpForm((f) => ({ ...f, vehicleId: e.target.value }))}>
-                {vehicles.map((v) => <option key={v.id} value={v.id}>{v.registration}</option>)}
+              <SelectInput value={expForm.vehicleId} onChange={(e) => setExpForm((f) => ({ ...f, vehicleId: e.target.value }))} disabled={isDriver}>
+                {isDriver && driverVehicle ? (
+                  <option value={driverVehicle.id}>{driverVehicle.registration}</option>
+                ) : (
+                  vehicles.map((v) => <option key={v.id} value={v.id}>{v.registration}</option>)
+                )}
               </SelectInput>
             </Field>
             <Field label="Category">
