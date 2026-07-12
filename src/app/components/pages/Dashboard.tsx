@@ -37,7 +37,7 @@ const tooltipStyle = {
 };
 
 export function Dashboard() {
-  const { user, vehicles, drivers, trips, navigateTo } = useStore();
+  const { user, vehicles, drivers, trips, maintenance, navigateTo } = useStore();
   const [type, setType] = useState("all");
   const [status, setStatus] = useState("all");
   const [region, setRegion] = useState("all");
@@ -72,6 +72,17 @@ export function Dashboard() {
   }));
 
   const complianceAlerts = drivers.filter((d) => licenseExpired(d) || licenseExpiringSoon(d));
+  
+  const serviceDueVehicles = useMemo(() => {
+    return vehicles.filter((v) => {
+      if (v.status === "Retired" || v.status === "In Shop") return false;
+      const closedLogs = maintenance.filter((m) => m.vehicleId === v.id && m.status === "Closed").length;
+      if (v.odometer > 40000 && closedLogs === 0) return true;
+      if (v.odometer > 60000 && closedLogs <= 1) return true;
+      return false;
+    });
+  }, [vehicles, maintenance]);
+
   const recentTrips = [...trips].slice(0, 5);
 
   return (
@@ -91,6 +102,36 @@ export function Dashboard() {
         <StatCard label="Drivers On Duty" value={driversOnDuty} icon={Users} tone="green" hint="Available + on trip" onClick={() => navigateTo("drivers")} />
         <StatCard label="Compliance Alerts" value={complianceAlerts.length} icon={TriangleAlert} tone={complianceAlerts.length ? "red" : "slate"} hint="License issues" onClick={() => navigateTo("drivers", { sort: "expiry" })} />
       </div>
+
+      {serviceDueVehicles.length > 0 && (
+        <div className="mt-6 space-y-3">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-500 flex items-center gap-1.5">
+            <TriangleAlert className="size-4 animate-bounce" />
+            Preventive Maintenance Alerts
+          </h4>
+          <div className="grid gap-4 md:grid-cols-2">
+            {serviceDueVehicles.map((v) => (
+              <div key={v.id} className="flex items-center justify-between rounded-xl border border-amber-100 bg-amber-50/50 p-4 text-xs text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                <div>
+                  <div className="font-semibold text-amber-900 dark:text-amber-250 text-sm">
+                    {v.registration} · {v.name}
+                  </div>
+                  <div className="mt-1">
+                    Odometer: <strong>{v.odometer.toLocaleString()} km</strong> · Status: <span className="font-semibold text-amber-700 dark:text-amber-400">Scheduled Service Overdue</span>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="!bg-indigo-600 hover:!bg-indigo-700 !text-white border-none shadow-none font-semibold text-[11px] h-7 px-2.5 rounded-lg shrink-0 cursor-pointer"
+                  onClick={() => navigateTo("maintenance")}
+                >
+                  Schedule Service
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <Card className="p-6 lg:col-span-2">

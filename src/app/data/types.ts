@@ -75,6 +75,17 @@ export interface Expense {
   date: string;
 }
 
+export interface Incident {
+  id: string;
+  driverId: string;
+  vehicleId: string;
+  severity: "Low" | "Medium" | "High";
+  description: string;
+  fineAmount: number;
+  resolved: number;
+  loggedAt: string;
+}
+
 export interface User {
   id: string;
   name: string;

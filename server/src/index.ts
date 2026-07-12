@@ -11,6 +11,7 @@ import tripsRouter from "./routes/trips";
 import maintenanceRouter from "./routes/maintenance";
 import fuelRouter from "./routes/fuel";
 import expensesRouter from "./routes/expenses";
+import incidentsRouter from "./routes/incidents";
 
 dotenv.config();
 
@@ -36,6 +37,7 @@ app.use("/api/trips", tripsRouter);
 app.use("/api/maintenance", maintenanceRouter);
 app.use("/api/fuel", fuelRouter);
 app.use("/api/expenses", expensesRouter);
+app.use("/api/incidents", incidentsRouter);
 
 // Database initialization & Server Boot
 async function startServer() {

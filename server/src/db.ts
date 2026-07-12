@@ -110,6 +110,19 @@ export async function getDb() {
       expiryDate TEXT NOT NULL,
       FOREIGN KEY (vehicleId) REFERENCES vehicles(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS incidents (
+      id TEXT PRIMARY KEY,
+      driverId TEXT NOT NULL,
+      vehicleId TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      description TEXT NOT NULL,
+      fineAmount INTEGER NOT NULL,
+      resolved INTEGER NOT NULL,
+      loggedAt TEXT NOT NULL,
+      FOREIGN KEY (driverId) REFERENCES drivers(id) ON DELETE CASCADE,
+      FOREIGN KEY (vehicleId) REFERENCES vehicles(id) ON DELETE CASCADE
+    );
   `);
 
   // Seed a default admin user if no users exist (needed for first login)
@@ -182,6 +195,12 @@ async function seedDemoData(database: Database<sqlite3.Database, sqlite3.Stateme
     ["doc2", "veh2", "Fitness Certificate", "Compliance", "Valid", "2026-12-31"],
     ["doc3", "veh3", "Pollution Certificate", "Compliance", "Expiring Soon", "2026-08-05"],
   ], "id");
+
+  await seedRows(database, "incidents", [
+    ["inc1", "drv1", "veh1", "Medium", "Speeding over 90km/h on Mumbai expressway", 2000, 0, "2026-07-11"],
+    ["inc2", "drv4", "veh4", "High", "Failed to yield at intersection causing minor bumper dent", 5000, 0, "2026-07-08"],
+    ["inc3", "drv4", "veh4", "Low", "Slight delay logging trip dispatch checklist", 0, 1, "2026-07-05"],
+  ], "id");
 }
 
 async function seedRows(
@@ -217,6 +236,8 @@ function getColumns(table: string, primaryKey: string) {
       return [primaryKey, "vehicleId", "category", "description", "amount", "date"];
     case "vehicle_documents":
       return [primaryKey, "vehicleId", "name", "type", "status", "expiryDate"];
+    case "incidents":
+      return [primaryKey, "driverId", "vehicleId", "severity", "description", "fineAmount", "resolved", "loggedAt"];
     default:
       return [primaryKey];
   }

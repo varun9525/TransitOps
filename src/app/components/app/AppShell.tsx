@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Sun,
   Moon,
+  ShieldAlert,
 } from "lucide-react";
 import { useStore } from "../../data/store";
 import type { Resource } from "../../data/store";
@@ -30,12 +31,15 @@ export type Page =
   | "maintenance"
   | "fuel"
   | "reports"
-  | "settings";
+  | "settings"
+  | "safety"
+  | "driver-console";
 
 const nav: { id: Page; label: string; icon: typeof Truck; resource: Resource }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, resource: "dashboard" },
   { id: "vehicles", label: "Vehicle Registry", icon: Truck, resource: "vehicles" },
-  { id: "drivers", label: "Drivers & Safety", icon: Users, resource: "drivers" },
+  { id: "drivers", label: "Drivers Registry", icon: Users, resource: "drivers" },
+  { id: "safety", label: "Safety & Incidents", icon: ShieldAlert, resource: "safety" },
   { id: "trips", label: "Trip Dispatcher", icon: Route, resource: "trips" },
   { id: "maintenance", label: "Maintenance", icon: Wrench, resource: "maintenance" },
   { id: "fuel", label: "Fuel & Expenses", icon: Fuel, resource: "fuel" },
@@ -56,6 +60,44 @@ export function AppShell({
   const { mode, toggle } = useTheme();
   const [drawer, setDrawer] = useState(false);
   const [menu, setMenu] = useState(false);
+
+  const Brand = () => (
+    <div className="flex items-center gap-2.5 px-6 py-5">
+      <span className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white ct-shadow-btn">
+        <Bus className="size-5" strokeWidth={2} />
+      </span>
+      <div>
+        <div className="[font-size:1.05rem] [font-weight:800] [letter-spacing:-0.02em] text-slate-900">
+          TransitOps
+        </div>
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+          Fleet Control
+        </div>
+      </div>
+    </div>
+  );
+
+  if (user?.role === "Driver") {
+    return (
+      <div className="min-h-screen bg-[#f8fafc]">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-100 bg-white/80 px-4 backdrop-blur-xl sm:px-6">
+          <div className="flex items-center gap-2">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 text-white font-bold text-xs">TO</span>
+            <span className="font-bold text-sm text-slate-950">Driver Console</span>
+          </div>
+          <button
+            onClick={logout}
+            className="flex items-center gap-1.5 rounded-lg border border-rose-100 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-100 cursor-pointer"
+          >
+            <LogOut className="size-4" /> Sign out
+          </button>
+        </header>
+        <main className="mx-auto max-w-lg px-4 py-8">
+          <div className="ct-fade-up">{children}</div>
+        </main>
+      </div>
+    );
+  }
 
   const items = nav.filter((n) => can(n.resource, "view"));
 
@@ -84,21 +126,7 @@ export function AppShell({
     </nav>
   );
 
-  const Brand = () => (
-    <div className="flex items-center gap-2.5 px-6 py-5">
-      <span className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white ct-shadow-btn">
-        <Bus className="size-5" strokeWidth={2} />
-      </span>
-      <div>
-        <div className="[font-size:1.05rem] [font-weight:800] [letter-spacing:-0.02em] text-slate-900">
-          TransitOps
-        </div>
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-          Fleet Control
-        </div>
-      </div>
-    </div>
-  );
+  // Brand removed from this scope to prevent duplication in compiler since it's declared above
 
   const initials = user?.name.split(" ").map((s) => s[0]).slice(0, 2).join("") ?? "";
 

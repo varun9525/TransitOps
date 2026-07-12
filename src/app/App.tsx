@@ -12,11 +12,18 @@ import { Maintenance } from "./components/pages/Maintenance";
 import { Fuel } from "./components/pages/Fuel";
 import { Reports } from "./components/pages/Reports";
 import { Settings } from "./components/pages/Settings";
+import { Safety } from "./components/pages/Safety";
+import { DriverConsole } from "./components/pages/DriverConsole";
 
 function Shell() {
   const { user, currentPage, navigateTo } = useStore();
 
   if (!user) return <Login />;
+
+  // Driver console enforcement redirect
+  if (user.role === "Driver" && currentPage !== "driver-console") {
+    navigateTo("driver-console");
+  }
 
   const pages: Record<Page, ReactNode> = {
     dashboard: <Dashboard />,
@@ -27,6 +34,8 @@ function Shell() {
     fuel: <Fuel />,
     reports: <Reports />,
     settings: <Settings />,
+    safety: <Safety />,
+    "driver-console": <DriverConsole />,
   };
 
   return (

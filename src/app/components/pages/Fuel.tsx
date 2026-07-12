@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Plus, Fuel as FuelIcon, Receipt, TrendingUp } from "lucide-react";
+import { toast } from "sonner";
 import {
   ResponsiveContainer,
   BarChart,
@@ -89,6 +90,32 @@ export function Fuel() {
   }, [vehicles, fuel, expenses]);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [scanning, setScanning] = useState(false);
+
+  const simulateScan = () => {
+    setScanning(true);
+    setTimeout(() => {
+      setScanning(false);
+      if (tab === "fuel") {
+        const v = vehicles.find((x) => x.id === fuelForm.vehicleId);
+        const currentOdo = v ? v.odometer : 100000;
+        setFuelForm((f) => ({
+          ...f,
+          liters: 65,
+          cost: 6175,
+          odometer: currentOdo + 320,
+        }));
+      } else {
+        setExpForm((f) => ({
+          ...f,
+          category: "Tolls",
+          amount: 1450,
+          description: "Highway toll charge ticket scan",
+        }));
+      }
+      toast.success("Receipt scanned successfully! Form fields pre-filled.");
+    }, 1500);
+  };
 
   const validate = () => {
     const errs: Record<string, string> = {};
@@ -271,60 +298,79 @@ export function Fuel() {
           <div className="p-4 bg-rose-50 text-rose-700 text-xs rounded-xl border border-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20">
             <strong>Access Denied:</strong> You are not currently assigned to any active dispatched trips. Only active drivers can log fuel or expenses.
           </div>
-        ) : tab === "fuel" ? (
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Vehicle">
-              <SelectInput value={fuelForm.vehicleId} onChange={(e) => { setFuelForm((f) => ({ ...f, vehicleId: e.target.value })); if (errors.vehicleId) validate(); }} disabled={isDriver}>
-                {isDriver && driverVehicle ? (
-                  <option value={driverVehicle.id}>{driverVehicle.registration}</option>
-                ) : (
-                  vehicles.map((v) => <option key={v.id} value={v.id}>{v.registration}</option>)
-                )}
-              </SelectInput>
-              {errors.vehicleId && <span className="text-xs text-rose-500 font-medium">{errors.vehicleId}</span>}
-            </Field>
-            <Field label="Date"><TextInput type="date" value={fuelForm.date} onChange={(e) => setFuelForm((f) => ({ ...f, date: e.target.value }))} /></Field>
-            <Field label="Litres">
-              <TextInput type="number" value={fuelForm.liters} onChange={(e) => { setFuelForm((f) => ({ ...f, liters: +e.target.value })); if (errors.liters || errors.cost) validate(); }} className={errors.liters ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
-              {errors.liters && <span className="text-xs text-rose-500 font-medium">{errors.liters}</span>}
-            </Field>
-            <Field label="Cost (₹)">
-              <TextInput type="number" value={fuelForm.cost} onChange={(e) => { setFuelForm((f) => ({ ...f, cost: +e.target.value })); if (errors.cost) validate(); }} className={errors.cost ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
-              {errors.cost && <span className="text-xs text-rose-500 font-medium">{errors.cost}</span>}
-            </Field>
-            <Field label="Odometer (km)">
-              <TextInput type="number" value={fuelForm.odometer} onChange={(e) => { setFuelForm((f) => ({ ...f, odometer: +e.target.value })); if (errors.odometer) validate(); }} className={errors.odometer ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
-              {errors.odometer && <span className="text-xs text-rose-500 font-medium">{errors.odometer}</span>}
-            </Field>
-          </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Vehicle">
-              <SelectInput value={expForm.vehicleId} onChange={(e) => { setExpForm((f) => ({ ...f, vehicleId: e.target.value })); if (errors.vehicleId) validate(); }} disabled={isDriver}>
-                {isDriver && driverVehicle ? (
-                  <option value={driverVehicle.id}>{driverVehicle.registration}</option>
-                ) : (
-                  vehicles.map((v) => <option key={v.id} value={v.id}>{v.registration}</option>)
-                )}
-              </SelectInput>
-              {errors.vehicleId && <span className="text-xs text-rose-500 font-medium">{errors.vehicleId}</span>}
-            </Field>
-            <Field label="Category">
-              <SelectInput value={expForm.category} onChange={(e) => setExpForm((f) => ({ ...f, category: e.target.value }))}>
-                {["Tolls", "Parking", "Insurance", "Fines", "Cleaning", "Misc"].map((o) => <option key={o}>{o}</option>)}
-              </SelectInput>
-            </Field>
-            <Field label="Amount (₹)">
-              <TextInput type="number" value={expForm.amount} onChange={(e) => { setExpForm((f) => ({ ...f, amount: +e.target.value })); if (errors.amount) validate(); }} className={errors.amount ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
-              {errors.amount && <span className="text-xs text-rose-500 font-medium">{errors.amount}</span>}
-            </Field>
-            <Field label="Date"><TextInput type="date" value={expForm.date} onChange={(e) => setExpForm((f) => ({ ...f, date: e.target.value }))} /></Field>
-            <div className="col-span-2">
-              <Field label="Description">
-                <TextInput value={expForm.description} onChange={(e) => { setExpForm((f) => ({ ...f, description: e.target.value })); if (errors.description) validate(); }} placeholder="Toll charges Bengaluru–Chennai" className={errors.description ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
-                {errors.description && <span className="text-xs text-rose-500 font-medium">{errors.description}</span>}
-              </Field>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center bg-indigo-50/50 border border-indigo-100/50 rounded-xl p-3.5 text-xs text-indigo-905 dark:bg-indigo-500/10 dark:border-indigo-500/20 dark:text-indigo-200">
+              <div>
+                <span className="font-bold block">🤖 Auto OCR Scanner</span>
+                <span className="text-[10px] text-slate-400">Scan receipt files to auto-fill logistics data</span>
+              </div>
+              <Button
+                variant="secondary"
+                disabled={scanning}
+                onClick={simulateScan}
+                className="h-8 py-0 px-3 cursor-pointer shrink-0 font-bold bg-white text-indigo-650 border-indigo-200"
+              >
+                {scanning ? "Scanning..." : "Upload & Scan Receipt"}
+              </Button>
             </div>
+
+            {tab === "fuel" ? (
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Vehicle">
+                  <SelectInput value={fuelForm.vehicleId} onChange={(e) => { setFuelForm((f) => ({ ...f, vehicleId: e.target.value })); if (errors.vehicleId) validate(); }} disabled={isDriver}>
+                    {isDriver && driverVehicle ? (
+                      <option value={driverVehicle.id}>{driverVehicle.registration}</option>
+                    ) : (
+                      vehicles.map((v) => <option key={v.id} value={v.id}>{v.registration}</option>)
+                    )}
+                  </SelectInput>
+                  {errors.vehicleId && <span className="text-xs text-rose-500 font-medium">{errors.vehicleId}</span>}
+                </Field>
+                <Field label="Date"><TextInput type="date" value={fuelForm.date} onChange={(e) => setFuelForm((f) => ({ ...f, date: e.target.value }))} /></Field>
+                <Field label="Litres">
+                  <TextInput type="number" value={fuelForm.liters} onChange={(e) => { setFuelForm((f) => ({ ...f, liters: +e.target.value })); if (errors.liters || errors.cost) validate(); }} className={errors.liters ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+                  {errors.liters && <span className="text-xs text-rose-500 font-medium">{errors.liters}</span>}
+                </Field>
+                <Field label="Cost (₹)">
+                  <TextInput type="number" value={fuelForm.cost} onChange={(e) => { setFuelForm((f) => ({ ...f, cost: +e.target.value })); if (errors.cost) validate(); }} className={errors.cost ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+                  {errors.cost && <span className="text-xs text-rose-500 font-medium">{errors.cost}</span>}
+                </Field>
+                <Field label="Odometer (km)">
+                  <TextInput type="number" value={fuelForm.odometer} onChange={(e) => { setFuelForm((f) => ({ ...f, odometer: +e.target.value })); if (errors.odometer) validate(); }} className={errors.odometer ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+                  {errors.odometer && <span className="text-xs text-rose-500 font-medium">{errors.odometer}</span>}
+                </Field>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Vehicle">
+                  <SelectInput value={expForm.vehicleId} onChange={(e) => { setExpForm((f) => ({ ...f, vehicleId: e.target.value })); if (errors.vehicleId) validate(); }} disabled={isDriver}>
+                    {isDriver && driverVehicle ? (
+                      <option value={driverVehicle.id}>{driverVehicle.registration}</option>
+                    ) : (
+                      vehicles.map((v) => <option key={v.id} value={v.id}>{v.registration}</option>)
+                    )}
+                  </SelectInput>
+                  {errors.vehicleId && <span className="text-xs text-rose-500 font-medium">{errors.vehicleId}</span>}
+                </Field>
+                <Field label="Category">
+                  <SelectInput value={expForm.category} onChange={(e) => setExpForm((f) => ({ ...f, category: e.target.value }))}>
+                    {["Tolls", "Parking", "Insurance", "Fines", "Cleaning", "Misc"].map((o) => <option key={o}>{o}</option>)}
+                  </SelectInput>
+                </Field>
+                <Field label="Amount (₹)">
+                  <TextInput type="number" value={expForm.amount} onChange={(e) => { setExpForm((f) => ({ ...f, amount: +e.target.value })); if (errors.amount) validate(); }} className={errors.amount ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+                  {errors.amount && <span className="text-xs text-rose-500 font-medium">{errors.amount}</span>}
+                </Field>
+                <Field label="Date"><TextInput type="date" value={expForm.date} onChange={(e) => setExpForm((f) => ({ ...f, date: e.target.value }))} /></Field>
+                <div className="col-span-2">
+                  <Field label="Description">
+                    <TextInput value={expForm.description} onChange={(e) => { setExpForm((f) => ({ ...f, description: e.target.value })); if (errors.description) validate(); }} placeholder="Toll charges Bengaluru–Chennai" className={errors.description ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""} />
+                    {errors.description && <span className="text-xs text-rose-500 font-medium">{errors.description}</span>}
+                  </Field>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Modal>

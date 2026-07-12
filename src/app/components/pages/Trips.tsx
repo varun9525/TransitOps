@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, MapPin, Send, CircleCheck, Ban, Package } from "lucide-react";
+import { Plus, MapPin, Send, CircleCheck, Ban, Package, Activity, Gauge, Navigation } from "lucide-react";
 import { useStore, licenseExpired } from "../../data/store";
 import type { TripStatus } from "../../data/types";
 import { tripTone } from "../app/status";
@@ -29,6 +29,24 @@ export function Trips() {
   }, [pageFilters]);
   const [open, setOpen] = useState(false);
   const [complete, setComplete] = useState<string | null>(null);
+  const [trackerTripId, setTrackerTripId] = useState<string | null>(null);
+  const [simProgress, setSimProgress] = useState(0);
+
+  useEffect(() => {
+    let interval: any;
+    if (trackerTripId) {
+      setSimProgress(15);
+      interval = setInterval(() => {
+        setSimProgress((p) => {
+          if (p >= 100) return 0;
+          return p + 5;
+        });
+      }, 1000);
+    } else {
+      setSimProgress(0);
+    }
+    return () => clearInterval(interval);
+  }, [trackerTripId]);
   
   // Trip completion states
   const [actual, setActual] = useState(0);
@@ -207,17 +225,22 @@ export function Trips() {
               {canEdit && (t.status === "Draft" || t.status === "Dispatched") && (
                 <div className="flex gap-2 border-t border-slate-100 pt-3">
                   {t.status === "Draft" && (
-                    <Button size="sm" className="flex-1" onClick={() => dispatchTrip(t.id)}>
-                      <Send className="size-4" /> Dispatch
+                    <Button size="sm" className="flex-1 text-[11px]" onClick={() => dispatchTrip(t.id)}>
+                      <Send className="size-3.5" /> Dispatch
                     </Button>
                   )}
                   {t.status === "Dispatched" && (
-                    <Button size="sm" className="flex-1" onClick={() => handleOpenComplete(t.id)}>
-                      <CircleCheck className="size-4" /> Complete
-                    </Button>
+                    <>
+                      <Button size="sm" variant="secondary" className="flex-1 text-[11px] border border-indigo-200 text-indigo-650 bg-white" onClick={() => setTrackerTripId(t.id)}>
+                        <Activity className="size-3.5" /> Track Live
+                      </Button>
+                      <Button size="sm" className="flex-1 text-[11px]" onClick={() => handleOpenComplete(t.id)}>
+                        <CircleCheck className="size-3.5" /> Complete
+                      </Button>
+                    </>
                   )}
-                  <Button size="sm" variant="danger" onClick={() => cancelTrip(t.id)}>
-                    <Ban className="size-4" /> Cancel
+                  <Button size="sm" variant="danger" className="text-[11px]" onClick={() => cancelTrip(t.id)}>
+                    <Ban className="size-3.5" /> Cancel
                   </Button>
                 </div>
               )}
@@ -377,6 +400,95 @@ export function Trips() {
           </div>
         </div>
       </Modal>
+
+      {/* Live tracking simulator modal */}
+      {trackerTripId && (
+        <Modal
+          open={!!trackerTripId}
+          onClose={() => setTrackerTripId(null)}
+          title={`Live Dispatch Tracker — ${trips.find(x => x.id === trackerTripId)?.reference}`}
+          footer={<Button onClick={() => setTrackerTripId(null)}>Close Tracker</Button>}
+        >
+          {(() => {
+            const tripObj = trips.find(x => x.id === trackerTripId);
+            if (!tripObj) return null;
+            const speed = Math.round(62 + Math.sin(simProgress / 10) * 8);
+            const fuelConsumed = Math.round((tripObj.plannedDistance * (simProgress / 100)) / 8);
+            return (
+              <div className="space-y-4 text-xs">
+                <div className="bg-slate-950 rounded-xl p-4 border border-slate-900 relative" style={{ height: "160px" }}>
+                  <svg className="w-full h-full" viewBox="0 0 500 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <pattern id="modalgrid" width="15" height="15" patternUnits="userSpaceOnUse">
+                        <circle cx="1.5" cy="1.5" r="0.75" fill="#334155" opacity="0.3" />
+                      </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#modalgrid)" />
+                    
+                    {/* Simulated corridor path */}
+                    <path d="M 50 60 Q 250 20 450 60" stroke="#4f46e5" strokeWidth="3" strokeDasharray="6 4" opacity="0.4" />
+                    
+                    {/* Origin node */}
+                    <circle cx="50" cy="60" r="6" fill="#4f46e5" />
+                    <text x="35" y="80" fill="#94a3b8" fontSize="9" fontWeight="bold">{tripObj.source}</text>
+                    
+                    {/* Destination node */}
+                    <circle cx="450" cy="60" r="6" fill="#10b981" />
+                    <text x="415" y="80" fill="#94a3b8" fontSize="9" fontWeight="bold">{tripObj.destination}</text>
+                    
+                    {/* Animated vehicle dot */}
+                    {simProgress > 0 && (
+                      <circle cx={50 + (400 * simProgress) / 100} cy={60 - Math.sin((Math.PI * simProgress) / 100) * 25} r="7" fill="#818cf8">
+                        <animate attributeName="r" values="6;9;6" dur="1.5s" repeatCount="indefinite" />
+                      </circle>
+                    )}
+                  </svg>
+                  <span className="absolute bottom-2 right-2 flex items-center gap-1 bg-emerald-500/10 text-emerald-400 px-2 py-0.5 text-[9px] font-bold uppercase rounded border border-emerald-500/20">
+                    ● Simulated GPS Active
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="border border-slate-100 rounded-xl p-3 bg-slate-50/50">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase">CURRENT ROUTE PROGRESS</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden flex-1">
+                        <div className="h-full bg-indigo-600 rounded-full transition-all duration-500" style={{ width: `${simProgress}%` }} />
+                      </div>
+                      <span className="font-bold text-slate-800 shrink-0 text-xs">{simProgress}%</span>
+                    </div>
+                  </div>
+
+                  <div className="border border-slate-100 rounded-xl p-3 bg-slate-50/50 flex justify-between items-center">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block uppercase">TRIP STATUS</span>
+                      <span className="font-bold text-indigo-600 text-xs mt-1 block">DISPATCHED (IN TRANSIT)</span>
+                    </div>
+                    <Navigation className="size-6 text-indigo-500 shrink-0" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center border-t border-slate-100 pt-3">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold uppercase">Vehicle Speed</span>
+                    <span className="text-sm font-bold text-slate-800 flex items-center justify-center gap-1 mt-0.5">
+                      <Gauge className="size-4 text-slate-400" /> {speed} km/h
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold uppercase">Mock Fuel Burnt</span>
+                    <span className="text-sm font-bold text-slate-800 mt-0.5 block">{fuelConsumed} L</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold uppercase">Cargo Temp</span>
+                    <span className="text-sm font-bold text-emerald-650 mt-0.5 block">4.5°C (Stable)</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </Modal>
+      )}
     </div>
   );
 }

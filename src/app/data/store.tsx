@@ -16,6 +16,7 @@ import type {
   Expense,
   User,
   Role,
+  Incident,
 } from "./types";
 
 /* ---------- RBAC ---------- */
@@ -27,7 +28,8 @@ export type Resource =
   | "maintenance"
   | "fuel"
   | "reports"
-  | "settings";
+  | "settings"
+  | "safety";
 export type Action = "view" | "create" | "edit" | "delete";
 
 export const resources: Resource[] = [
@@ -39,6 +41,7 @@ export const resources: Resource[] = [
   "fuel",
   "reports",
   "settings",
+  "safety",
 ];
 export const roles: Role[] = ["Fleet Manager", "Driver", "Safety Officer", "Financial Analyst"];
 
@@ -52,6 +55,7 @@ export const matrix: Record<Role, Partial<Record<Resource, Action[]>>> = {
     fuel: ["view", "create"],
     reports: ["view"],
     settings: ["view", "edit"],
+    safety: ["view", "create", "edit", "delete"],
   },
   Driver: {
     dashboard: ["view"],
@@ -66,6 +70,7 @@ export const matrix: Record<Role, Partial<Record<Resource, Action[]>>> = {
     trips: ["view"],
     maintenance: ["view", "create", "edit"],
     reports: ["view"],
+    safety: ["view", "create", "edit"],
   },
   "Financial Analyst": {
     dashboard: ["view"],
@@ -73,6 +78,7 @@ export const matrix: Record<Role, Partial<Record<Resource, Action[]>>> = {
     fuel: ["view", "create"],
     vehicles: ["view"],
     trips: ["view"],
+    safety: ["view"],
   },
 };
 
@@ -117,7 +123,9 @@ export type Page =
   | "maintenance"
   | "fuel"
   | "reports"
-  | "settings";
+  | "settings"
+  | "safety"
+  | "driver-console";
 
 interface StoreShape {
   currentPage: Page;
@@ -131,6 +139,7 @@ interface StoreShape {
   maintenance: MaintenanceLog[];
   fuel: FuelLog[];
   expenses: Expense[];
+  incidents: Incident[];
   refreshData: () => Promise<void>;
   login: (email: string, password: string, role: Role) => Promise<boolean>;
   register: (name: string, email: string, password: string, role: Role) => Promise<boolean>;
@@ -163,6 +172,9 @@ interface StoreShape {
   // fuel + expense
   addFuel: (f: Omit<FuelLog, "id">) => Promise<void>;
   addExpense: (e: Omit<Expense, "id">) => Promise<void>;
+  // incidents
+  addIncident: (inc: Omit<Incident, "id" | "resolved">) => Promise<boolean>;
+  resolveIncident: (id: string) => Promise<void>;
 }
 
 const StoreContext = createContext<StoreShape | null>(null);
@@ -184,11 +196,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [maintenance, setMaintenance] = useState<MaintenanceLog[]>([]);
   const [fuel, setFuel] = useState<FuelLog[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
 
   // Stable function to load all data from backend
   const loadData = useCallback(async () => {
     try {
-      const [v, d, t, m, f, e, u] = await Promise.all([
+      const [v, d, t, m, f, e, u, inc] = await Promise.all([
         apiCall("/vehicles"),
         apiCall("/drivers"),
         apiCall("/trips"),
@@ -196,6 +209,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         apiCall("/fuel"),
         apiCall("/expenses"),
         apiCall("/auth/users").catch(() => []),
+        apiCall("/incidents").catch(() => []),
       ]);
       setVehicles(v);
       setDrivers(d);
@@ -204,6 +218,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setFuel(f);
       setExpenses(e);
       setUsers(u);
+      setIncidents(inc);
     } catch (err: any) {
       console.error("Failed to load backend data:", err);
     }
@@ -442,6 +457,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [loadData]);
 
+  /* ---------- incidents ---------- */
+  const addIncident = useCallback(async (inc: Omit<Incident, "id" | "resolved">) => {
+    try {
+      await apiCall("/incidents", "POST", inc);
+      toast.success("Incident logged successfully");
+      await loadData();
+      return true;
+    } catch (err: any) {
+      toast.error(err.message || "Failed to log incident");
+      return false;
+    }
+  }, [loadData]);
+
+  const resolveIncident = useCallback(async (id: string) => {
+    try {
+      await apiCall(`/incidents/${id}/resolve`, "PUT");
+      toast.success("Incident marked resolved");
+      await loadData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to resolve incident");
+    }
+  }, [loadData]);
+
   /* ---------- context value ---------- */
   const value: StoreShape = {
     currentPage,
@@ -455,6 +493,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     maintenance,
     fuel,
     expenses,
+    incidents,
     refreshData: loadData,
     login,
     register,
@@ -476,6 +515,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     closeMaintenance,
     addFuel,
     addExpense,
+    addIncident,
+    resolveIncident,
   };
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
